@@ -1,0 +1,149 @@
+# Historico de Colaboracao (Antigravity e Codex)
+
+Este arquivo serve como um log compartilhado para que possamos trabalhar juntos no projeto de forma sincronizada.
+Todas as alteracoes, decisoes e acoes tomadas no projeto devem ser registradas aqui.
+
+## Formato de Registro
+- **Data/Hora**: [Inserir]
+- **IA**: [Antigravity ou Codex]
+- **Acao Realizada**: [Descricao breve do que foi feito ou do arquivo modificado]
+- **Proximos Passos (opcional)**: [Se aplicavel]
+
+---
+### LOG DE ACOES
+- **Data/Hora**: 2026-03-22 13:47
+- **IA**: Antigravity
+- **Acao Realizada**: Criacao deste arquivo (`historico_ia.txt`) para inicializar a comunicacao e o rastreamento do trabalho conjunto.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Analisei a estrutura atual do site, revisei a landing page principal e levantei pontos de melhoria de UX, conversao, SEO, performance e confianca para publicacao real.
+- **Proximos Passos (opcional)**: Transformar os principais pontos levantados em backlog priorizado de produto e front-end.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Atualizei a estrategia de geracao dos prompts em `src/App.tsx`, trocando prompts com embalagem e acessorios por prompts focados em likeness, boneco isolado, pose neutra e limite de ate 4 cores chapadas para impressao 3D multicolor.
+- **Proximos Passos (opcional)**: Testar os novos prompts com fotos reais de pessoa e pet e ajustar a intensidade do estilo conforme os resultados.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Implementei uma area real de conta no front-end em `src/App.tsx`, com navegacao entre landing, autenticacao e painel do cliente, reaproveitando o botao "Minha Conta" do topo do site.
+- **Proximos Passos (opcional)**: Refinar textos, identidade visual e nome final da marca antes da publicacao.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Criei integracao com Supabase para autenticacao e persistencia, incluindo os arquivos `src/supabase.ts`, `src/auth.ts` e `src/orders.ts`. O fluxo agora suporta login por email e senha, login com Google via OAuth, leitura da sessao atual e logout.
+- **Proximos Passos (opcional)**: Validar no navegador o fluxo completo com provider Google ativado no painel do Supabase.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Adicionei salvamento de pedidos no Supabase. Ao finalizar um pedido logado, o app agora salva os dados na tabela `orders` e envia a imagem de referencia e a previa do boneco para o bucket privado `bonecos`.
+- **Proximos Passos (opcional)**: Salvar tambem dados comerciais do pedido, como telefone, endereco, observacoes, status operacional e codigo de pagamento.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Criei a estrutura de banco e politicas do Supabase nos arquivos `supabase/setup.sql` e `supabase/README.md`, incluindo tabelas `profiles` e `orders`, trigger para sincronizar usuarios do Auth, bucket `bonecos` e politicas RLS para perfis, pedidos e imagens.
+- **Proximos Passos (opcional)**: Confirmar no painel do Supabase se o SQL foi aplicado corretamente e se o bucket privado foi criado sem erro.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Ajustei arquivos de configuracao do projeto para a nova arquitetura: `package.json`, `.env.example`, `.gitignore` e `vite.config.ts`. Tambem simplifiquei `server.mjs` para servir apenas os arquivos estaticos do build em producao.
+- **Proximos Passos (opcional)**: Se necessario, otimizar bundle do front-end com code splitting, pois o build ainda acusa chunk grande.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Validei as alteracoes com `npm run lint`, `npm run build` e testes locais do servidor estatico. Tambem confirmei que as variaveis `VITE_GEMINI_API_KEY`, `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` passaram a ser reconhecidas no `.env`.
+- **Proximos Passos (opcional)**: Testar manualmente cadastro, login, login com Google e criacao do primeiro pedido salvo no Supabase.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Corrigi o fluxo de retorno do login com Google em `src/App.tsx`, evitando que o app limpasse a URL do OAuth cedo demais. Tambem ajustei a area "Minha Conta" para mostrar estado de processamento do login e melhorei o botao do topo para exibir nome/avatar quando a sessao estiver ativa.
+- **Proximos Passos (opcional)**: Retestar o login com Google no navegador e confirmar se o nome do usuario passa a aparecer no topo e no painel da conta.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Confirmei que as variaveis `VITE_GEMINI_API_KEY`, `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` passaram a existir no `.env`, validando novamente o projeto com `npm run lint` e `npm run build`.
+- **Proximos Passos (opcional)**: Continuar os testes reais no navegador com login por email e por Google.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Orientei a configuracao do Google Cloud para criacao do cliente OAuth Web, incluindo `Authorized JavaScript origins`, `Authorized redirect URIs`, uso do callback do Supabase e preenchimento de `Client ID` e `Client Secret` no provider Google do Supabase.
+- **Proximos Passos (opcional)**: Manter o projeto em modo de teste no Google Cloud ate terminar a validacao dos usuarios.
+
+- **Data/Hora**: 2026-03-22 16:06
+- **IA**: Codex
+- **Acao Realizada**: Substitui o icone temporario com a letra `G` no botao `CONTINUAR COM GOOGLE` pela imagem local `logoGoogle.jpg`, importada em `src/App.tsx`, preservando o layout do botao.
+- **Proximos Passos (opcional)**: Ajustar o tamanho e recorte do logo, se necessario, para ficar mais proximo da apresentacao oficial do Google.
+
+- **Data/Hora**: 2026-03-22 16:41
+- **IA**: Codex
+- **Acao Realizada**: Ajustei os prompts de geracao em `src/App.tsx` para tratar a foto da pessoa como referencia de rosto apenas, ignorando crop de selfie e enquadramento parcial. Tambem reforcei no prompt final que o resultado deve ser um boneco completo, da cabeca aos pes, com pernas e calcados totalmente visiveis.
+- **Proximos Passos (opcional)**: Testar com selfies reais para validar se a semelhanca facial continua boa mesmo com o corpo sendo inferido pela IA.
+
+- **Data/Hora**: 2026-03-22 16:41
+- **IA**: Codex
+- **Acao Realizada**: Troquei a geracao de imagem de proporcao `1:1` para `3:4` e mudei os cards de preview e resumo do pedido para usar `object-contain` com fundo neutro, evitando que o boneco apareca cortado no site.
+- **Proximos Passos (opcional)**: Se ainda houver cortes em casos especificos, ajustar mais a distancia de camera e as regras de enquadramento do prompt.
+
+- **Data/Hora**: 2026-03-22 16:52
+- **IA**: Codex
+- **Acao Realizada**: Refinei novamente os prompts de pessoa e animal em `src/App.tsx` com base em exemplos reais aprovados. Passei a pedir rosto semi-realista com corpo de toy simplificado, proibicao de embelezamento do rosto, preservacao de sobrancelhas/bigode/barba/cabelo reais e enquadramento em leve tres quartos. No prompt de pet, reforcei focinho, orelhas, marca do peito, pernas totalmente visiveis e manutencao simples da coleira/plaquinha quando ela aparecer na foto.
+- **Proximos Passos (opcional)**: Rodar novos testes com as fotos de pessoa e cachorro para comparar o resultado do site com os exemplos bons gerados manualmente no Gemini.
+
+- **Data/Hora**: 2026-03-22 17:05
+- **IA**: Codex
+- **Acao Realizada**: Oficializei a marca `Minha Fabrica3D` no projeto. Atualizei o nome exibido no header, rodape, cards de preco, `index.html`, `metadata.json`, `server.mjs`, `package.json` e `package-lock.json`. Tambem alinhei as chaves locais de rascunho/autenticacao em `src/App.tsx` para refletirem a nova marca.
+- **Proximos Passos (opcional)**: Revisar logo, favicon e textos de marketing para aproveitar melhor a nova identidade visual da marca.
+
+- **Data/Hora**: 2026-03-22 17:12
+- **IA**: Codex
+- **Acao Realizada**: Substitui a imagem de placeholder do card principal "Exemplo de Boneco 3D" pela arte local `boneco3d_enhanced.png` em `src/App.tsx`. Tambem ajustei o enquadramento para `object-contain` com proporcao vertical, evitando corte do boneco no hero.
+- **Proximos Passos (opcional)**: Se quiser, padronizar as demais imagens da landing para a mesma linguagem visual da nova arte principal.
+
+- **Data/Hora**: 2026-03-22 17:19
+- **IA**: Codex
+- **Acao Realizada**: Reforcei o prompt de geracao para pets em `src/App.tsx` para combater invencoes de raca, cor e postura. Agora a analise da foto extrai melhor cranio, focinho, orelhas, visibilidade do corpo, cores que nao aparecem e marcacoes proibidas. No prompt final, passei a exigir pose em pe, sem sentar, proibicao de manchas extras e proibicao de transformar o pet em um cachorro musculoso generico quando a foto mostrar um animal mais fino e de focinho estreito.
+- **Proximos Passos (opcional)**: Testar novamente com a foto da Dori e, se ainda houver muita diferenca, considerar permitir 2 ou 3 fotos de referencia para pets no fluxo do site.
+
+- **Data/Hora**: 2026-03-22 17:29
+- **IA**: Codex
+- **Acao Realizada**: Corrigi o carregamento infinito do botao/area de conta ajustando `src/auth.ts`. Adicionei timeout para resolucao de sessao e perfil no Supabase e passei a usar um fallback imediato com dados basicos do usuario, evitando que o front fique preso em `CARREGANDO...` quando o banco ou o perfil demorarem mais para responder.
+- **Proximos Passos (opcional)**: Retestar login normal e login com Google no navegador para confirmar que o botao muda de estado rapidamente mesmo com lentidao de rede.
+
+---
+### PASSO A PASSO - GOOGLE CLOUD PARA LOGIN COM GOOGLE
+
+1. Entrar no projeto correto no Google Cloud Console.
+2. Ir em `APIs e servicos`.
+3. Abrir `Tela de consentimento OAuth` ou `Google Auth Platform > Branding`.
+4. Definir um nome temporario para o app, caso a marca final ainda nao esteja escolhida.
+5. Selecionar o tipo de publico como `Externo`.
+6. Informar email de suporte e email do desenvolvedor.
+7. Salvar a tela de consentimento.
+8. Se o app estiver em modo de teste, adicionar os emails que vao testar o login em `Usuarios de teste`.
+9. Ir em `Credenciais`.
+10. Clicar em `Criar credenciais`.
+11. Escolher `ID do cliente OAuth`.
+12. Selecionar `Aplicativo da Web`.
+13. Em `Authorized JavaScript origins`, adicionar:
+    - `http://localhost:3000`
+    - a URL final de producao quando ela existir
+14. Em `Authorized redirect URIs`, adicionar exatamente o callback exibido no Supabase:
+    - `https://srgzqkcvcnjnpstpktqf.supabase.co/auth/v1/callback`
+15. Clicar em `Criar`.
+16. Copiar o `Client ID` e o `Client Secret`.
+17. Voltar ao Supabase em `Authentication > Providers > Google`.
+18. Colar o `Client ID` no campo `Client IDs`.
+19. Colar o `Client Secret` no campo `Client Secret (for OAuth)`.
+20. Ativar `Enable Sign in with Google`.
+21. Salvar.
+22. No Supabase, abrir `Authentication > URL Configuration`.
+23. Garantir que `http://localhost:3000` esteja listado nas URLs permitidas para testes locais.
+24. Reiniciar o projeto com `npm run dev`.
+25. Testar o botao `Continuar com Google` na tela `Minha Conta`.
+
+### Observacoes Importantes
+- O redirect URI do Google precisa ser identico ao callback mostrado no Supabase.
+- Nao usar `service_role` no front-end.
+- Enquanto o app estiver em teste no Google Cloud, somente usuarios adicionados como test users conseguem entrar.
+- O nome do app no Google Cloud pode ser trocado depois sem quebrar a integracao.
