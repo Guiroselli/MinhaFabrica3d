@@ -110,6 +110,11 @@ Todas as alteracoes, decisoes e acoes tomadas no projeto devem ser registradas a
 - **Acao Realizada**: Corrigi o carregamento infinito do botao/area de conta ajustando `src/auth.ts`. Adicionei timeout para resolucao de sessao e perfil no Supabase e passei a usar um fallback imediato com dados basicos do usuario, evitando que o front fique preso em `CARREGANDO...` quando o banco ou o perfil demorarem mais para responder.
 - **Proximos Passos (opcional)**: Retestar login normal e login com Google no navegador para confirmar que o botao muda de estado rapidamente mesmo com lentidao de rede.
 
+- **Data/Hora**: 2026-03-22 17:46
+- **IA**: Codex
+- **Acao Realizada**: Reposicionei a landing para vender `ima 3D personalizado` como produto principal. Atualizei hero, CTA, beneficios, como funciona, galeria, secao de ocasioes, precos e FAQ em `src/App.tsx`. Tambem alinhei textos do fluxo de criacao para falar em `ima 3D`, troquei titulos da galeria em `src/constants.ts` e atualizei `index.html` e `metadata.json` para refletirem o novo posicionamento.
+- **Proximos Passos (opcional)**: Trocar as imagens genericas da galeria por fotos reais do produto aplicado na geladeira e criar variantes visuais para pessoa, pet, casal e familia.
+
 ---
 ### PASSO A PASSO - GOOGLE CLOUD PARA LOGIN COM GOOGLE
 

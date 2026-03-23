@@ -887,7 +887,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       SEUS PEDIDOS
                     </h2>
                     <p className="text-white/55 text-lg md:text-xl font-medium max-w-xl mb-10">
-                      Crie sua conta para salvar seu acesso, voltar aos pedidos e acompanhar a producao do seu boneco sem depender de link solto.
+                      Crie sua conta para salvar seu acesso, voltar aos pedidos e acompanhar a producao do seu ima 3D sem depender de link solto.
                     </p>
                   </div>
 
@@ -916,7 +916,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       </div>
                       <div>
                         <p className="font-black text-lg">Fluxo alinhado com o site</p>
-                        <p className="text-white/45 font-medium">Entrou, acessou a conta e ja consegue voltar para criar um novo boneco.</p>
+                        <p className="text-white/45 font-medium">Entrou, acessou a conta e ja consegue voltar para criar um novo ima 3D.</p>
                       </div>
                     </div>
                   </div>
@@ -1099,7 +1099,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     onClick={startCustomizer}
                     className="bg-funko-blue text-white px-8 py-4 rounded-[1.5rem] font-black hover:scale-[1.02] transition-transform shadow-[0_0_20px_rgba(0,174,239,0.3)]"
                   >
-                    CRIAR NOVO BONECO
+                    CRIAR NOVO IMA
                   </button>
                   <button
                     type="button"
@@ -1215,7 +1215,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                           onClick={startCustomizer}
                           className="bg-funko-yellow text-[#0A0A0A] px-8 py-4 rounded-[1.5rem] font-black hover:scale-[1.02] transition-transform shadow-[0_0_18px_rgba(255,210,0,0.22)]"
                         >
-                          CRIAR MEU PRIMEIRO BONECO
+                          CRIAR MEU PRIMEIRO IMA
                         </button>
                       </div>
                     )}
@@ -1245,47 +1245,88 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               exit={{ opacity: 0, y: -20 }}
               className="text-center"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center text-left">
+              <div className="grid grid-cols-1 lg:grid-cols-[1.02fr_0.98fr] gap-12 items-center text-left">
                 <div>
                   <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-funko-blue/10 border border-funko-blue/20 text-funko-blue text-xs font-black tracking-widest uppercase mb-8 shadow-sm">
                     <Sparkles className="w-3 h-3" />
-                    Sua foto, sua miniatura
+                    Seu momento vira um ima 3D
                   </div>
                   <h1 className="text-6xl md:text-8xl font-display font-black tracking-tighter leading-[0.85] mb-8 text-white">
                     TRANSFORME <br />
                     <span className="text-funko-blue drop-shadow-lg">SUA FOTO EM</span> <br />
-                    UM BONECO 3D!
+                    UM IMA 3D!
                   </h1>
                   <p className="text-white/60 text-xl max-w-xl mb-12 font-medium">
-                    Envie uma foto e a nossa inteligência artificial ajuda a visualizar seu boneco antes de imprimirmos em 3D.
+                    Crie um ima 3D personalizado para geladeira a partir da sua foto. Hoje com foco em pessoas e pets, e em breve com opcoes para casal e familia.
                   </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mb-12">
+                    <div className="pop-card p-5">
+                      <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-2">Previa antes da producao</p>
+                      <p className="text-white/65 font-bold">Veja como o seu ima pode ficar antes de aprovar.</p>
+                    </div>
+                    <div className="pop-card p-5">
+                      <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-2">Presente afetivo</p>
+                      <p className="text-white/65 font-bold">Um item criativo para geladeira, escritorio e datas especiais.</p>
+                    </div>
+                    <div className="pop-card p-5">
+                      <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-2">Feito sob encomenda</p>
+                      <p className="text-white/65 font-bold">Cada peca nasce da foto enviada e do estilo escolhido.</p>
+                    </div>
+                    <div className="pop-card p-5">
+                      <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-2">Pessoas e pets</p>
+                      <p className="text-white/65 font-bold">Comece pelo seu rosto ou pelo seu pet. Casal e familia chegam em breve.</p>
+                    </div>
+                  </div>
                   <div className="flex flex-col sm:flex-row items-center gap-6">
                     <button 
                       onClick={() => setStep('type')}
                       className="w-full sm:w-auto bg-funko-blue text-white px-12 py-6 rounded-[2rem] text-xl font-black flex items-center justify-center gap-3 hover:scale-105 transition-transform shadow-[0_0_30px_rgba(0,174,239,0.4)] animate-shimmer"
                     >
-                      CRIAR MEU BONECO <ArrowRight className="w-6 h-6" />
+                      CRIAR MEU IMA 3D <ArrowRight className="w-6 h-6" />
                     </button>
                     <button 
                       onClick={() => scrollTo(galleryRef)}
                       className="w-full sm:w-auto bg-[#141414] border-2 border-white/5 px-12 py-6 rounded-[2rem] text-xl font-black hover:bg-white/5 transition-colors text-white/80"
                     >
-                      VER EXEMPLOS
+                      VER EXEMPLOS REAIS
                     </button>
                   </div>
                 </div>
                 <div className="relative">
                   <div className="absolute -inset-10 bg-funko-blue/20 rounded-[3rem] blur-3xl -z-10 animate-pulse" />
+                  <div className="absolute top-4 -left-4 z-10 pop-card px-5 py-4 bg-[#0F1316]/90">
+                    <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-1">A partir de</p>
+                    <p className="text-2xl font-black text-white">R$ 149,90</p>
+                  </div>
                   <div className="border border-white/10 rounded-[2rem] p-4 bg-[#141414]/50 backdrop-blur-md rotate-3 hover:rotate-0 transition-transform duration-700 shadow-2xl">
                     <img 
                       src={heroBonecoExample}
-                      alt="Exemplo de Boneco 3D" 
+                      alt="Exemplo de ima 3D personalizado" 
                       className="rounded-[1.5rem] w-full object-contain aspect-[4/5] bg-[#D8C7AF] shadow-2xl opacity-90 hover:opacity-100 transition-opacity"
                     />
                     <div className="absolute -bottom-6 -left-6 bg-funko-yellow text-[#0A0A0A] p-6 rounded-3xl shadow-xl -rotate-6 font-black text-lg">
-                      100% PERSONALIZADO!
+                      PERFEITO PARA PRESENTEAR
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-12 text-left">
+                <div className="pop-card p-6">
+                  <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-3">Produto principal</p>
+                  <p className="text-lg font-black">Ima 3D personalizado</p>
+                </div>
+                <div className="pop-card p-6">
+                  <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-3">Uso ideal</p>
+                  <p className="text-lg font-black">Geladeira, presente e decoracao</p>
+                </div>
+                <div className="pop-card p-6">
+                  <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-3">Categorias</p>
+                  <p className="text-lg font-black">Pessoa e pet agora</p>
+                </div>
+                <div className="pop-card p-6">
+                  <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-3">Expansao</p>
+                  <p className="text-lg font-black">Casal e familia em breve</p>
                 </div>
               </div>
 
@@ -1298,35 +1339,35 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 className="mt-40 pt-20 border-t border-white/5"
               >
                 <div className="text-center mb-20">
-                  <h2 className="text-5xl font-display font-black mb-4">Como Funciona?</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">É tão simples quanto 1, 2, 3!</p>
+                  <h2 className="text-5xl font-display font-black mb-4">Como seu ima 3D nasce</h2>
+                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Da foto enviada ao presente pronto em 3 passos</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
                   <div className="pop-card p-12 flex flex-col items-center text-center">
                     <div className="w-20 h-20 bg-funko-blue/20 rounded-3xl flex items-center justify-center text-funko-blue mb-8 shadow-xl rotate-3 border border-funko-blue/30">
                       <Camera className="w-10 h-10" />
                     </div>
-                    <h3 className="text-2xl font-black mb-4">1. Envie sua Foto</h3>
+                    <h3 className="text-2xl font-black mb-4">1. Envie sua foto</h3>
                     <p className="text-white/60 font-medium leading-relaxed">
-                      Tire uma foto sua ou do seu pet. Nossa IA fará a mágica inicial!
+                      Mande uma foto de pessoa ou pet com boa luz para comecarmos a base do seu ima 3D.
                     </p>
                   </div>
                   <div className="pop-card p-12 flex flex-col items-center text-center">
                     <div className="w-20 h-20 bg-funko-yellow/20 rounded-3xl flex items-center justify-center text-funko-yellow mb-8 shadow-xl -rotate-3 border border-funko-yellow/30">
                       <Sparkles className="w-10 h-10" />
                     </div>
-                    <h3 className="text-2xl font-black mb-4">2. Prévia c/ Gemini</h3>
+                    <h3 className="text-2xl font-black mb-4">2. Aprove a previa</h3>
                     <p className="text-white/60 font-medium leading-relaxed">
-                      Visualize como o seu boneco 3D pode ficar antes mesmo de comprá-lo.
+                      Nossa IA monta a previa do personagem e voce decide se quer seguir com a producao.
                     </p>
                   </div>
                   <div className="pop-card p-12 flex flex-col items-center text-center">
                     <div className="w-20 h-20 bg-funko-green/20 rounded-3xl flex items-center justify-center text-funko-green mb-8 shadow-xl rotate-6 border border-funko-green/30">
                       <Box className="w-10 h-10" />
                     </div>
-                    <h3 className="text-2xl font-black mb-4">3. Você Recebe</h3>
+                    <h3 className="text-2xl font-black mb-4">3. Receba seu ima</h3>
                     <p className="text-white/60 font-medium leading-relaxed">
-                      Imprimimos, pintamos e enviamos para sua casa com todo carinho.
+                      Produzimos sua peca em 3D e enviamos pronta para decorar, presentear e marcar momentos.
                     </p>
                   </div>
                 </div>
@@ -1341,8 +1382,8 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 className="mt-40 pt-20 border-t border-white/5"
               >
                 <div className="text-center mb-20">
-                  <h2 className="text-5xl font-display font-black mb-4">Nossa Galeria</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Veja o que já criamos!</p>
+                  <h2 className="text-5xl font-display font-black mb-4">Ideias para inspirar seu pedido</h2>
+                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Hoje com pessoa e pet. Casal e familia chegam em breve.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {SHOWCASE.map((item) => (
@@ -1366,6 +1407,48 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 </div>
               </motion.div>
 
+              <motion.div
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                className="mt-40 pt-20 border-t border-white/5"
+              >
+                <div className="text-center mb-20">
+                  <h2 className="text-5xl font-display font-black mb-4">Perfeito para presentear</h2>
+                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Escolha o tipo de memoria que voce quer transformar em 3D</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+                  <div className="pop-card p-10 text-left">
+                    <div className="w-16 h-16 rounded-3xl bg-funko-blue/10 border border-funko-blue/20 text-funko-blue flex items-center justify-center mb-8">
+                      <User className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-2xl font-black mb-3">Seu rosto</h3>
+                    <p className="text-white/50 font-bold">Ideal para presentes pessoais, aniversario e lembrancas criativas.</p>
+                  </div>
+                  <div className="pop-card p-10 text-left">
+                    <div className="w-16 h-16 rounded-3xl bg-funko-yellow/10 border border-funko-yellow/20 text-funko-yellow flex items-center justify-center mb-8">
+                      <Dog className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-2xl font-black mb-3">Seu pet</h3>
+                    <p className="text-white/50 font-bold">Uma forma afetiva de eternizar seu companheiro na geladeira ou no escritorio.</p>
+                  </div>
+                  <div className="pop-card p-10 text-left">
+                    <div className="w-16 h-16 rounded-3xl bg-funko-green/10 border border-funko-green/20 text-funko-green flex items-center justify-center mb-8">
+                      <Sparkles className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-2xl font-black mb-3">Casal em breve</h3>
+                    <p className="text-white/50 font-bold">Versoes romanticas para datas especiais, casamento, namoro e lembrancas a dois.</p>
+                  </div>
+                  <div className="pop-card p-10 text-left">
+                    <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 text-white/70 flex items-center justify-center mb-8">
+                      <Box className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-2xl font-black mb-3">Familia em breve</h3>
+                    <p className="text-white/50 font-bold">Para montar composicoes com varias pessoas e criar presentes ainda mais especiais.</p>
+                  </div>
+                </div>
+              </motion.div>
+
               {/* Planos */}
               <motion.div 
                 ref={pricingRef} 
@@ -1375,30 +1458,65 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 className="mt-40 pt-20 border-t border-white/5"
               >
                 <div className="text-center mb-20">
-                  <h2 className="text-5xl font-display font-black mb-4">Preços</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Escolha o seu favorito!</p>
+                  <h2 className="text-5xl font-display font-black mb-4">Escolha seu formato</h2>
+                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Comece pelo ima individual e evolua para versoes premium</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                   <div className="pop-card p-12">
-                    <h3 className="text-3xl font-black mb-2">Minha Fabrica3D Standard</h3>
+                    <h3 className="text-3xl font-black mb-2">Ima 3D Essencial</h3>
                     <div className="text-5xl font-black text-white mb-8">R$ 149,90</div>
                     <ul className="space-y-4 mb-12 text-white/60 font-bold">
-                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Miniatura de 10cm</li>
-                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Roupa Aleatória</li>
-                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Resina de Alta Definição</li>
+                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> 1 pessoa ou 1 pet por pedido</li>
+                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Previa visual antes da producao</li>
+                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Peca 3D feita para geladeira</li>
                     </ul>
-                    <button onClick={() => setStep('type')} className="w-full py-5 bg-white/5 rounded-2xl font-black text-lg hover:bg-white/10 transition-colors text-white">ESCOLHER ESTE</button>
+                    <button onClick={() => setStep('type')} className="w-full py-5 bg-white/5 rounded-2xl font-black text-lg hover:bg-white/10 transition-colors text-white">QUERO ESTE</button>
                   </div>
                   <div className="pop-card p-12 border-funko-blue/50 bg-funko-blue/5 relative overflow-hidden">
                     <div className="absolute top-8 right-8 bg-funko-blue text-white text-xs font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-[0_0_15px_rgba(0,174,239,0.5)]">POPULAR</div>
-                    <h3 className="text-3xl font-black mb-2">Minha Fabrica3D Custom</h3>
+                    <h3 className="text-3xl font-black mb-2">Ima 3D Premium</h3>
                     <div className="text-5xl font-black text-funko-blue mb-8 drop-shadow-md">R$ 179,80</div>
                     <ul className="space-y-4 mb-12 text-white/60 font-bold">
-                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Múltiplas Roupas</li>
-                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Prévia IA Ilimitada</li>
-                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Frete Grátis</li>
+                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Mais liberdade de estilo visual</li>
+                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Previa IA ilimitada</li>
+                      <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Frete gratis</li>
                     </ul>
-                    <button onClick={() => setStep('type')} className="w-full py-5 bg-funko-blue text-white rounded-2xl font-black text-lg hover:scale-105 transition-transform shadow-[0_4px_15px_rgba(0,174,239,0.3)]">ESCOLHER ESTE</button>
+                    <button onClick={() => setStep('type')} className="w-full py-5 bg-funko-blue text-white rounded-2xl font-black text-lg hover:scale-105 transition-transform shadow-[0_4px_15px_rgba(0,174,239,0.3)]">QUERO O PREMIUM</button>
+                  </div>
+                </div>
+                <div className="pop-card p-8 max-w-4xl mx-auto mt-8 text-left">
+                  <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-3">Em breve</p>
+                  <p className="text-white/70 font-bold">Vamos liberar modulos para casal, familia e composicoes com mais de um personagem no mesmo pedido.</p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                ref={faqRef}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                className="mt-40 pt-20 border-t border-white/5"
+              >
+                <div className="text-center mb-20">
+                  <h2 className="text-5xl font-display font-black mb-4">Duvidas frequentes</h2>
+                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">As respostas que mais ajudam a fechar a compra</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="pop-card p-10 text-left">
+                    <h3 className="text-2xl font-black mb-4">O produto ja e um ima de geladeira?</h3>
+                    <p className="text-white/55 font-medium leading-relaxed">Sim. A comunicacao principal da marca agora gira em torno de imas 3D personalizados para geladeira e presentes afetivos.</p>
+                  </div>
+                  <div className="pop-card p-10 text-left">
+                    <h3 className="text-2xl font-black mb-4">Eu vejo a previa antes de comprar?</h3>
+                    <p className="text-white/55 font-medium leading-relaxed">Sim. A ideia e diminuir inseguranca: voce envia a foto, visualiza a previa e segue com mais confianca.</p>
+                  </div>
+                  <div className="pop-card p-10 text-left">
+                    <h3 className="text-2xl font-black mb-4">Posso fazer de pet tambem?</h3>
+                    <p className="text-white/55 font-medium leading-relaxed">Pode. Pessoa e pet sao os primeiros modulos do site, com foco em lembrancas afetivas e presentes personalizados.</p>
+                  </div>
+                  <div className="pop-card p-10 text-left">
+                    <h3 className="text-2xl font-black mb-4">Vai ter casal e familia?</h3>
+                    <p className="text-white/55 font-medium leading-relaxed">Sim. Esses modulos estao no roadmap e ja podem ser comunicados na home como as proximas colecoes da Minha Fabrica3D.</p>
                   </div>
                 </div>
               </motion.div>
@@ -1416,8 +1534,8 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               <button onClick={() => setStep('welcome')} className="flex items-center gap-2 text-white/40 hover:text-white mb-12 font-black transition-colors">
                 <ChevronLeft className="w-5 h-5" /> VOLTAR
               </button>
-              <h2 className="text-5xl font-display font-black tracking-tight mb-4">O que vamos criar?</h2>
-              <p className="text-white/40 text-xl font-medium mb-12">Escolha quem será transformado em 3D.</p>
+              <h2 className="text-5xl font-display font-black tracking-tight mb-4">O que vamos transformar em ima 3D?</h2>
+              <p className="text-white/40 text-xl font-medium mb-12">Escolha quem vai ganhar a versao personalizada para geladeira.</p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <button 
@@ -1428,7 +1546,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <User className="w-10 h-10" />
                   </div>
                   <h3 className="text-3xl font-black mb-3">Pessoa</h3>
-                  <p className="text-white/40 font-bold">Bonecos com o seu rosto ou de um amigo.</p>
+                  <p className="text-white/40 font-bold">Seu rosto ou de alguem especial em um ima 3D personalizado.</p>
                 </button>
                 <button 
                   onClick={() => { setSubjectType('pet'); setStep('upload'); }}
@@ -1438,7 +1556,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <Dog className="w-10 h-10" />
                   </div>
                   <h3 className="text-3xl font-black mb-3">Pet</h3>
-                  <p className="text-white/40 font-bold">Uma miniatura fiel do seu melhor amigo.</p>
+                  <p className="text-white/40 font-bold">Seu pet transformado em um ima 3D cheio de personalidade.</p>
                 </button>
               </div>
             </motion.div>
@@ -1455,9 +1573,9 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               <button onClick={() => setStep('type')} className="flex items-center gap-2 text-white/40 hover:text-white mb-12 font-black transition-colors mx-auto">
                 <ChevronLeft className="w-5 h-5" /> VOLTAR
               </button>
-              <h2 className="text-5xl font-display font-black tracking-tight mb-4">Envie sua Foto</h2>
+              <h2 className="text-5xl font-display font-black tracking-tight mb-4">Envie a foto base do seu ima</h2>
               <p className="text-white/40 text-xl font-medium mb-12">
-                Use foto de frente com luz clara para o Gemini ler bem seu rosto/pet!
+                Use foto de frente com boa luz para o Gemini entender melhor seu rosto ou pet.
               </p>
 
               <div 
@@ -1501,8 +1619,8 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
             >
               <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-8">
                 <div>
-                  <h2 className="text-5xl font-display font-black tracking-tight mb-4">Escolha o Estilo</h2>
-                  <p className="text-white/40 text-xl font-medium">Como seu boneco deve se vestir?</p>
+                  <h2 className="text-5xl font-display font-black tracking-tight mb-4">Escolha o estilo do seu ima 3D</h2>
+                  <p className="text-white/40 text-xl font-medium">Como o personagem da sua peca deve se vestir?</p>
                 </div>
                 <div className="flex items-center gap-6 pop-card p-4">
                   <div className="w-20 h-20 rounded-2xl border-4 border-funko-blue overflow-hidden shadow-[0_0_15px_rgba(0,174,239,0.3)]">
@@ -1567,21 +1685,21 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
             >
               <h2 className="text-5xl font-display font-black tracking-tight mb-4 flex items-center justify-center gap-4">
                 <Wand2 className="w-12 h-12 text-funko-blue" />
-                Magia da IA
+                Previa do seu ima 3D
               </h2>
               <p className="text-white/40 text-xl font-medium mb-12">
-                O Gemini está analisando seus traços e modelando o boneco...
+                O Gemini esta analisando seus tracos e modelando a previa do seu ima...
               </p>
 
               <div className="pop-card p-12 text-left mb-12">
                 {!geminiPreviewData || isGeneratingPreview ? (
                   <div className="flex flex-col items-center justify-center py-12 space-y-8">
                     <div className="w-20 h-20 border-8 border-funko-blue border-t-white rounded-full animate-spin shadow-[0_0_15px_rgba(0,174,239,0.5)]"></div>
-                    <p className="text-2xl font-black animate-pulse text-funko-blue">O Gemini está desenhando o resultado (isso pode levar uns 15 segundos)...</p>
+                    <p className="text-2xl font-black animate-pulse text-funko-blue">O Gemini esta desenhando sua previa (isso pode levar uns 15 segundos)...</p>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center">
-                    <h3 className="text-3xl font-black mb-8 text-funko-green">Pronto! Olhe como pode ficar:</h3>
+                    <h3 className="text-3xl font-black mb-8 text-funko-green">Pronto! Veja como seu ima pode ficar:</h3>
                     <div className="aspect-[3/4] w-full max-w-sm rounded-[2rem] overflow-hidden border-4 border-white/20 shadow-2xl relative bg-[#D8C7AF]">
                       <img src={geminiPreviewData} alt="Preview do Gemini" className="w-full h-full object-contain" />
                       <div className="absolute top-4 left-4 bg-funko-blue/90 backdrop-blur text-white text-xs font-black px-4 py-2 rounded-full uppercase">
@@ -1616,7 +1734,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               exit={{ opacity: 0, scale: 0.95 }}
               className="max-w-5xl mx-auto"
             >
-              <h2 className="text-5xl font-display font-black tracking-tight mb-16 text-center">Resumo do Pedido</h2>
+              <h2 className="text-5xl font-display font-black tracking-tight mb-16 text-center">Resumo do seu ima 3D</h2>
               
               <div className="pop-card overflow-hidden border-funko-blue/30 shadow-[0_10px_40px_rgba(0,174,239,0.1)]">
                 <div className="grid grid-cols-1 md:grid-cols-2">
@@ -1631,7 +1749,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       </div>
                       <div>
                         <p className="text-xs font-black uppercase tracking-widest text-white/40">Status do Envio</p>
-                        <p className="text-xl font-black">Pronto para 3D ✓</p>
+                        <p className="text-xl font-black">Pronto para producao</p>
                       </div>
                     </div>
                   </div>
@@ -1653,7 +1771,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
 
                       <div className="space-y-6 mb-12">
                         <div className="flex justify-between text-white/60 font-bold text-lg">
-                          <span>Miniatura 3D</span>
+                          <span>Ima 3D personalizado</span>
                           <span>R$ 149,90</span>
                         </div>
                         <div className="flex justify-between text-white/60 font-bold text-lg">
@@ -1674,7 +1792,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <div className="flex flex-col gap-6">
                       {!authUser && (
                         <div className="rounded-2xl border border-funko-yellow/20 bg-funko-yellow/10 px-5 py-4 text-sm font-bold text-funko-yellow">
-                          Entre na sua conta para salvar o pedido, a previa do boneco e a imagem de referencia no Supabase.
+                          Entre na sua conta para salvar o pedido, a previa do ima e a imagem de referencia no Supabase.
                         </div>
                       )}
 
@@ -1714,7 +1832,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               </div>
               <h2 className="text-6xl font-display font-black tracking-tight mb-8">Pedido Recebido!</h2>
               <p className="text-white/60 text-2xl font-medium mb-16">
-                Seu pedido e as imagens ficaram salvos na sua conta. Agora nossos artistas podem seguir com o boneco.
+                Seu pedido e as imagens ficaram salvos na sua conta. Agora nossa equipe pode seguir com o seu ima 3D.
               </p>
               <div className="pop-card p-12 text-left mb-16 border-funko-green/30">
                 <div className="flex items-center gap-6 mb-10">
@@ -1774,7 +1892,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 <span className="font-display font-black text-3xl tracking-tighter text-funko-blue drop-shadow-md">MINHA FABRICA3D</span>
               </div>
               <p className="text-white/40 font-bold max-w-sm">
-                Ajudamos a materializar sua imaginação através de inteligência artificial e impressão 3D premium.
+                Criamos imas 3D personalizados de pessoas e pets com previa visual antes da producao.
               </p>
             </div>
             <div>
