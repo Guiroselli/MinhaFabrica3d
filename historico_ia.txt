@@ -115,6 +115,16 @@ Todas as alteracoes, decisoes e acoes tomadas no projeto devem ser registradas a
 - **Acao Realizada**: Reposicionei a landing para vender `ima 3D personalizado` como produto principal. Atualizei hero, CTA, beneficios, como funciona, galeria, secao de ocasioes, precos e FAQ em `src/App.tsx`. Tambem alinhei textos do fluxo de criacao para falar em `ima 3D`, troquei titulos da galeria em `src/constants.ts` e atualizei `index.html` e `metadata.json` para refletirem o novo posicionamento.
 - **Proximos Passos (opcional)**: Trocar as imagens genericas da galeria por fotos reais do produto aplicado na geladeira e criar variantes visuais para pessoa, pet, casal e familia.
 
+- **Data/Hora**: 2026-03-23 09:18
+- **IA**: Codex
+- **Acao Realizada**: Reestruturei novamente a home para seguir a nova estrategia comercial da marca, agora com foco em `miniaturas 3D personalizadas` em vez de uma unica oferta centrada em ima. Atualizei o hero com a narrativa "Sua historia em tres dimensoes", criei a secao `Nossos produtos principais` com `Kit Minha Arte` e `Mini Realismo`, adicionei blocos de destaque para pets, cenarios e videos de processo, criei a secao `Solucoes para eventos`, reformulei a area de precos para refletir os dois produtos e alinhei FAQ, fluxo interno, `index.html`, `metadata.json` e titulos da galeria para a nova proposta.
+- **Proximos Passos (opcional)**: Substituir imagens genericas por exemplos reais dos produtos `Kit Minha Arte`, `Mini Realismo`, pets e eventos, e separar no futuro uma pagina especifica para casamentos e pedidos corporativos.
+
+- **Data/Hora**: 2026-03-23 09:25
+- **IA**: Codex
+- **Acao Realizada**: Reescrevi o `README.md` para refletir o projeto real. O arquivo agora documenta a marca `Minha Fabrica3D`, as linhas de produto atuais, stack, variaveis de ambiente, setup local, configuracao do Supabase, login com Google, scripts, estrutura principal do repositorio e fluxo do usuario.
+- **Proximos Passos (opcional)**: Manter o `README.md` atualizado sempre que houver mudancas de produto, setup ou deploy para evitar divergencia entre documentacao e codigo.
+
 ---
 ### PASSO A PASSO - GOOGLE CLOUD PARA LOGIN COM GOOGLE
 

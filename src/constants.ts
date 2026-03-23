@@ -62,19 +62,19 @@ export const BODY_STYLES: BodyStyle[] = [
 export const SHOWCASE: ShowcaseItem[] = [
   {
     id: 'ex1',
-    title: 'Ima 3D de Pet',
+    title: 'Miniatura 3D de Pet',
     type: 'pet',
     imageUrl: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=600&auto=format&fit=crop'
   },
   {
     id: 'ex2',
-    title: 'Ima 3D de Casal (em breve)',
+    title: 'Casal em Miniatura (em breve)',
     type: 'person',
     imageUrl: 'https://images.unsplash.com/photo-1621453883726-1b07d6a524e9?q=80&w=600&auto=format&fit=crop'
   },
   {
     id: 'ex3',
-    title: 'Ima 3D de Pessoa',
+    title: 'Caricatura Personalizada',
     type: 'person',
     imageUrl: 'https://images.unsplash.com/photo-1563605658632-4e4ad19bf089?q=80&w=600&auto=format&fit=crop'
   }
