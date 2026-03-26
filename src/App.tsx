@@ -58,9 +58,8 @@ const POST_AUTH_ACTION_KEY = 'minha_fabrica3d_post_auth_action';
 
 // Inicialização do SDK do Gemini (usando a key do projeto)
 // Certifique-se de que no seu .env exista VITE_GEMINI_API_KEY="sua_chave_aqui"
-const ai = new GoogleGenAI({ 
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'CHAVE_OMITIDA_PARA_EVITAR_ERRO' 
-});
+const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
+const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
 export default function App() {
   const [view, setView] = useState<View>('home');
@@ -537,6 +536,11 @@ export default function App() {
   // Função central da integração com o Gemini
   const generateGeminiPreview = async () => {
     if (!uploadedPhoto) return;
+    if (!ai) {
+      alert("A chave do Gemini nao foi encontrada. Crie o arquivo .env na raiz com VITE_GEMINI_API_KEY e reinicie o npm run dev.");
+      setGeminiPreviewData(uploadedPhoto);
+      return;
+    }
     setIsGeneratingPreview(true);
     setGeminiPreviewData(null);
     try {
@@ -732,7 +736,6 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
         alert(`O acesso ao gerador de imagens 'Imagen 3' parece não estar habilitado no seu projeto do Google Cloud/AI Studio (Erro 404). \n\nNo entanto, a descrição estrutural que o Gemini gerou foi:\n\n${fallbackResult.text}`);
         setGeminiPreviewData(uploadedPhoto); // Voltar para a foto inicial para não travar a UI
       }
-      setIsGeneratingPreview(false);
       setIsGeneratingPreview(false);
 
     } catch (error) {
