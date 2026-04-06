@@ -10,6 +10,16 @@
 6. Rode o projeto com `npm run dev`.
 
 Observacoes:
-- O bucket `bonecos` foi configurado como privado. As imagens so podem ser lidas pelo proprio usuario autenticado.
+- O bucket `bonecos` foi configurado como privado. As imagens podem ser lidas pelo proprio usuario autenticado e tambem por contas marcadas como admin.
 - Os pedidos salvos vao para a tabela `public.orders`.
 - Os perfis dos clientes vao para a tabela `public.profiles`.
+- O `supabase/setup.sql` tambem libera que admins atualizem o campo `status` dos pedidos.
+- Para promover alguem a admin depois que a conta for criada, rode:
+
+```sql
+update public.profiles
+set is_admin = true
+where email = 'minhafabrica3d@truesmarthome';
+```
+
+Depois de alterar o SQL do projeto, rode novamente o `supabase/setup.sql` no painel do Supabase para aplicar a policy que libera a atualizacao de status pelos admins.

@@ -125,6 +125,16 @@ Todas as alteracoes, decisoes e acoes tomadas no projeto devem ser registradas a
 - **Acao Realizada**: Reescrevi o `README.md` para refletir o projeto real. O arquivo agora documenta a marca `Minha Fabrica3D`, as linhas de produto atuais, stack, variaveis de ambiente, setup local, configuracao do Supabase, login com Google, scripts, estrutura principal do repositorio e fluxo do usuario.
 - **Proximos Passos (opcional)**: Manter o `README.md` atualizado sempre que houver mudancas de produto, setup ou deploy para evitar divergencia entre documentacao e codigo.
 
+- **Data/Hora**: 2026-03-26 14:20
+- **IA**: Codex
+- **Acao Realizada**: Adicionei suporte a contas de admin no projeto. Atualizei `supabase/setup.sql` com a coluna `profiles.is_admin`, a funcao `public.is_admin()` e as policies para permitir que admins leiam todos os pedidos e as imagens do bucket `bonecos`. No app, atualizei `src/auth.ts`, `src/orders.ts`, `src/types.ts` e `src/App.tsx` para reconhecer o papel de admin e exibir um painel com a foto enviada pelo cliente, a previa gerada e os dados basicos de cada pedido.
+- **Proximos Passos (opcional)**: Rodar novamente o `supabase/setup.sql` no projeto Supabase, promover os emails que devem ser admin e, se necessario depois, adicionar acoes operacionais como mudanca de status dentro do painel.
+
+- **Data/Hora**: 2026-03-26 14:45
+- **IA**: Codex
+- **Acao Realizada**: Ampliei o painel de admin para permitir alterar o status operacional de cada pedido com as opcoes `Aguardando`, `Em producao`, `Impresso` e `Enviado`. Tambem atualizei `src/orders.ts`, `src/types.ts` e `supabase/setup.sql` para suportar o update de status com seguranca via Supabase.
+- **Proximos Passos (opcional)**: Reaplicar o `supabase/setup.sql` no Supabase para liberar a policy de update e, se fizer sentido depois, adicionar filtros por status e busca por cliente no painel administrativo.
+
 ---
 ### PASSO A PASSO - GOOGLE CLOUD PARA LOGIN COM GOOGLE
 

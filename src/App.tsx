@@ -28,10 +28,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleGenAI } from '@google/genai';
-import { SubjectType, BodyStyle, CustomOrder, SavedOrder } from './types';
+import { SubjectType, BodyStyle, CustomOrder, ORDER_STATUSES, OrderStatus, SavedOrder } from './types';
 import { BODY_STYLES, SHOWCASE } from './constants';
 import { AuthUser, getSessionUser, loginUser, loginWithGoogle, logoutUser, registerUser, subscribeToAuthChanges } from './auth';
-import { createOrder, listOrders } from './orders';
+import { createOrder, listAdminOrders, listOrders, updateOrderStatus } from './orders';
 import logoGoogle from '../logoGoogle.jpg';
 import heroBonecoExample from '../boneco3d_enhanced.png';
 
@@ -55,6 +55,29 @@ const INITIAL_AUTH_FORM: AuthFormState = {
 
 const DRAFT_STORAGE_KEY = 'minha_fabrica3d_draft';
 const POST_AUTH_ACTION_KEY = 'minha_fabrica3d_post_auth_action';
+const ORDER_STATUS_OPTIONS: Array<{ value: OrderStatus; label: string }> = [
+  { value: 'pending', label: 'Aguardando' },
+  { value: 'in_production', label: 'Em producao' },
+  { value: 'printed', label: 'Impresso' },
+  { value: 'shipped', label: 'Enviado' },
+];
+
+function getOrderStatusLabel(status: string) {
+  return ORDER_STATUS_OPTIONS.find((option) => option.value === status)?.label || 'Aguardando';
+}
+
+function getOrderStatusBadgeClasses(status: string) {
+  switch (status) {
+    case 'in_production':
+      return 'border-funko-blue/20 bg-funko-blue/10 text-funko-blue';
+    case 'printed':
+      return 'border-funko-green/20 bg-funko-green/10 text-funko-green';
+    case 'shipped':
+      return 'border-funko-yellow/20 bg-funko-yellow/10 text-funko-yellow';
+    default:
+      return 'border-white/10 bg-white/5 text-white/65';
+  }
+}
 
 // Inicialização do SDK do Gemini (usando a key do projeto)
 // Certifique-se de que no seu .env exista VITE_GEMINI_API_KEY="sua_chave_aqui"
@@ -78,6 +101,10 @@ export default function App() {
   const [orders, setOrders] = useState<SavedOrder[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [adminStatusDrafts, setAdminStatusDrafts] = useState<Record<string, OrderStatus>>({});
+  const [adminStatusFeedback, setAdminStatusFeedback] = useState<string | null>(null);
+  const [adminStatusError, setAdminStatusError] = useState<string | null>(null);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [postAuthAction, setPostAuthAction] = useState<'none' | 'finalizeOrder'>('none');
@@ -105,6 +132,9 @@ export default function App() {
 
   const currentStepIndex = steps.findIndex(s => s.id === step);
   const firstName = authUser?.name.split(' ')[0] || 'Cliente';
+  const isAdmin = Boolean(authUser?.isAdmin);
+  const personOrdersCount = orders.filter((order) => order.subjectType === 'person').length;
+  const petOrdersCount = orders.filter((order) => order.subjectType === 'pet').length;
   const accountButtonLabel = authUser ? firstName.toUpperCase() : 'MINHA CONTA';
   const shouldShowOAuthProcessing = view === 'account' && hasPendingAuthReturn && !authUser;
 
@@ -129,6 +159,11 @@ export default function App() {
           </span>
         )}
         <span>{accountButtonLabel}</span>
+        {isAdmin && (
+          <span className="rounded-full bg-black/10 px-2 py-1 text-[9px] font-black tracking-[0.25em] text-black/70">
+            ADMIN
+          </span>
+        )}
       </span>
     );
   };
@@ -284,7 +319,9 @@ export default function App() {
     setIsOrdersLoading(true);
     setOrdersError(null);
 
-    listOrders()
+    const loadOrders = authUser.isAdmin ? listAdminOrders : listOrders;
+
+    loadOrders()
       .then((items) => {
         if (!isMounted) {
           return;
@@ -297,7 +334,13 @@ export default function App() {
           return;
         }
 
-        setOrdersError(error instanceof Error ? error.message : 'Nao foi possivel carregar seus pedidos.');
+        setOrdersError(
+          error instanceof Error
+            ? error.message
+            : authUser.isAdmin
+              ? 'Nao foi possivel carregar o painel de admin.'
+              : 'Nao foi possivel carregar seus pedidos.',
+        );
       })
       .finally(() => {
         if (!isMounted) {
@@ -479,6 +522,9 @@ export default function App() {
     } finally {
       setAuthUser(null);
       setOrders([]);
+      setAdminStatusDrafts({});
+      setAdminStatusFeedback(null);
+      setAdminStatusError(null);
       setAuthForm(INITIAL_AUTH_FORM);
       setAuthMode('login');
       setAuthError(null);
@@ -531,6 +577,49 @@ export default function App() {
     }
 
     await finalizeOrderForUser(authUser);
+  };
+
+  const handleAdminStatusDraftChange = (orderId: string, status: OrderStatus) => {
+    if (!ORDER_STATUSES.includes(status)) {
+      return;
+    }
+
+    setAdminStatusError(null);
+    setAdminStatusFeedback(null);
+    setAdminStatusDrafts((current) => ({
+      ...current,
+      [orderId]: status,
+    }));
+  };
+
+  const handleAdminStatusSave = async (order: SavedOrder) => {
+    const nextStatus = adminStatusDrafts[order.id] || order.status;
+
+    if (nextStatus === order.status) {
+      return;
+    }
+
+    setAdminStatusError(null);
+    setAdminStatusFeedback(null);
+    setUpdatingOrderId(order.id);
+
+    try {
+      const updatedOrder = await updateOrderStatus(order.id, nextStatus);
+
+      setOrders((current) => current.map((item) => (item.id === updatedOrder.id ? updatedOrder : item)));
+      setAdminStatusDrafts((current) => {
+        const nextDrafts = { ...current };
+        delete nextDrafts[order.id];
+        return nextDrafts;
+      });
+      setAdminStatusFeedback(
+        `Status de ${updatedOrder.customerName || 'cliente'} atualizado para ${getOrderStatusLabel(updatedOrder.status)}.`,
+      );
+    } catch (error) {
+      setAdminStatusError(error instanceof Error ? error.message : 'Nao foi possivel atualizar o status deste pedido.');
+    } finally {
+      setUpdatingOrderId(null);
+    }
   };
 
   // Função central da integração com o Gemini
@@ -1085,14 +1174,16 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-12">
                 <div>
                   <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-funko-green/10 border border-funko-green/20 text-funko-green text-xs font-black tracking-widest uppercase mb-6">
-                    <Check className="w-3 h-3" />
-                    Minha conta
+                    {isAdmin ? <ShieldCheck className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+                    {isAdmin ? 'Painel admin' : 'Minha conta'}
                   </div>
                   <h2 className="text-5xl md:text-6xl font-display font-black tracking-tight mb-4">
-                    {isAuthLoading ? 'Carregando conta...' : `Bem-vindo, ${firstName}`}
+                    {isAuthLoading ? 'Carregando conta...' : isAdmin ? `Painel de ${firstName}` : `Bem-vindo, ${firstName}`}
                   </h2>
                   <p className="text-white/55 text-lg max-w-2xl">
-                    Aqui o cliente acompanha dados de acesso e, no proximo passo, pedidos, revisoes e andamento de producao.
+                    {isAdmin
+                      ? 'Aqui o admin acompanha os pedidos recebidos e acessa as imagens de referencia e as previas enviadas pelos clientes.'
+                      : 'Aqui o cliente acompanha dados de acesso e, no proximo passo, pedidos, revisoes e andamento de producao.'}
                   </p>
                 </div>
 
@@ -1150,21 +1241,47 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                         <p className="text-white/40 font-bold text-sm uppercase tracking-widest mb-2">Metodo de acesso</p>
                         <p className="text-lg font-bold text-white/75 uppercase">{authUser.provider || 'email'}</p>
                       </div>
+                      {authUser.isAdmin && (
+                        <div className="rounded-[1.5rem] border border-funko-yellow/20 bg-funko-yellow/10 px-5 py-4">
+                          <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-2">Nivel de acesso</p>
+                          <p className="text-lg font-black text-white">Administrador</p>
+                          <p className="text-sm font-medium text-white/55 mt-2">
+                            Esta conta pode visualizar os pedidos recebidos e as imagens enviadas pelos clientes.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="pop-card p-8">
                     <div className="flex items-center justify-between gap-4 mb-8">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-white/40 mb-2">Pedidos</p>
-                        <h3 className="text-3xl font-black">Seu painel esta pronto</h3>
+                        <p className="text-xs font-black uppercase tracking-widest text-white/40 mb-2">
+                          {isAdmin ? 'Resumo administrativo' : 'Pedidos'}
+                        </p>
+                        <h3 className="text-3xl font-black">{isAdmin ? 'Visao geral do atendimento' : 'Seu painel esta pronto'}</h3>
                       </div>
-                      <div className="w-14 h-14 rounded-2xl bg-funko-blue/10 text-funko-blue flex items-center justify-center border border-funko-blue/20">
-                        <Box className="w-7 h-7" />
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border ${isAdmin ? 'bg-funko-yellow/10 text-funko-yellow border-funko-yellow/20' : 'bg-funko-blue/10 text-funko-blue border-funko-blue/20'}`}>
+                        {isAdmin ? <ShieldCheck className="w-7 h-7" /> : <Box className="w-7 h-7" />}
                       </div>
                     </div>
 
-                    {isOrdersLoading ? (
+                    {isAdmin ? (
+                      <div className="grid sm:grid-cols-3 gap-4">
+                        <div className="rounded-[1.75rem] border border-white/10 bg-[#101010] p-5">
+                          <p className="text-xs font-black uppercase tracking-widest text-white/35 mb-3">Pedidos recebidos</p>
+                          <p className="text-4xl font-black text-funko-yellow">{orders.length}</p>
+                        </div>
+                        <div className="rounded-[1.75rem] border border-white/10 bg-[#101010] p-5">
+                          <p className="text-xs font-black uppercase tracking-widest text-white/35 mb-3">Pessoas</p>
+                          <p className="text-4xl font-black text-funko-blue">{personOrdersCount}</p>
+                        </div>
+                        <div className="rounded-[1.75rem] border border-white/10 bg-[#101010] p-5">
+                          <p className="text-xs font-black uppercase tracking-widest text-white/35 mb-3">Pets</p>
+                          <p className="text-4xl font-black text-funko-green">{petOrdersCount}</p>
+                        </div>
+                      </div>
+                    ) : isOrdersLoading ? (
                       <div className="rounded-[2rem] border border-dashed border-white/10 bg-[#101010] p-8 text-center">
                         <div className="w-14 h-14 border-8 border-funko-blue border-t-transparent rounded-full animate-spin mx-auto mb-5" />
                         <p className="text-white/65 text-lg font-medium">Carregando pedidos salvos no Supabase...</p>
@@ -1197,9 +1314,11 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                                 </span>
                               </div>
                               <h4 className="text-xl font-black mb-2">{order.styleName || 'Roupa Aleatoria'}</h4>
-                              <p className="text-white/45 font-bold text-sm mb-4 uppercase tracking-widest">
-                                Status: {order.status}
-                              </p>
+                              <div className="mb-4">
+                                <span className={`inline-flex rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-widest ${getOrderStatusBadgeClasses(order.status)}`}>
+                                  {getOrderStatusLabel(order.status)}
+                                </span>
+                              </div>
                               <p className="text-white/70 font-black">R$ {order.totalAmount.toFixed(2).replace('.', ',')}</p>
                             </div>
                           </div>
@@ -1223,6 +1342,159 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       </div>
                     )}
                   </div>
+
+                  {isAdmin && (
+                    <div className="pop-card p-8 lg:col-span-2">
+                      <div className="flex items-center justify-between gap-4 mb-8">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-widest text-white/40 mb-2">Pedidos e imagens</p>
+                          <h3 className="text-3xl font-black">Acesso completo aos envios dos clientes</h3>
+                        </div>
+                        <div className="w-14 h-14 rounded-2xl bg-funko-blue/10 text-funko-blue flex items-center justify-center border border-funko-blue/20">
+                          <Box className="w-7 h-7" />
+                        </div>
+                      </div>
+
+                      {adminStatusFeedback && (
+                        <div className="rounded-[1.5rem] border border-funko-green/20 bg-funko-green/10 px-5 py-4 text-sm font-bold text-funko-green mb-6">
+                          {adminStatusFeedback}
+                        </div>
+                      )}
+
+                      {adminStatusError && (
+                        <div className="rounded-[1.5rem] border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-200 mb-6">
+                          {adminStatusError}
+                        </div>
+                      )}
+
+                      {isOrdersLoading ? (
+                        <div className="rounded-[2rem] border border-dashed border-white/10 bg-[#101010] p-8 text-center">
+                          <div className="w-14 h-14 border-8 border-funko-blue border-t-transparent rounded-full animate-spin mx-auto mb-5" />
+                          <p className="text-white/65 text-lg font-medium">Carregando pedidos e imagens do painel de admin...</p>
+                        </div>
+                      ) : ordersError ? (
+                        <div className="rounded-[2rem] border border-red-500/20 bg-red-500/10 p-6">
+                          <p className="font-black text-red-200 mb-2">Nao foi possivel carregar o painel de admin.</p>
+                          <p className="text-red-100/80 font-medium">{ordersError}</p>
+                        </div>
+                      ) : orders.length > 0 ? (
+                        <div className="space-y-6">
+                          {orders.map((order) => (
+                            <div key={order.id} className="rounded-[2rem] border border-white/10 bg-[#101010] p-5">
+                              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-5">
+                                <div className="flex items-start gap-4">
+                                  {order.customerAvatarUrl ? (
+                                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-white/10">
+                                      <img src={order.customerAvatarUrl} alt={order.customerName || 'Cliente'} className="w-full h-full object-cover" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-lg font-black text-white/60">
+                                      {(order.customerName || 'C').slice(0, 1).toUpperCase()}
+                                    </div>
+                                  )}
+
+                                  <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Cliente</p>
+                                    <h4 className="text-2xl font-black">{order.customerName || 'Cliente sem nome'}</h4>
+                                    <p className="text-white/45 font-bold break-all">{order.customerEmail || order.userId}</p>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-3">
+                                  <span className="rounded-full border border-funko-blue/20 bg-funko-blue/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-funko-blue">
+                                    {order.subjectType === 'person' ? 'Pessoa' : 'Pet'}
+                                  </span>
+                                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/55">
+                                    {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                                  </span>
+                                  <span className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest ${getOrderStatusBadgeClasses(order.status)}`}>
+                                    {getOrderStatusLabel(order.status)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid md:grid-cols-2 gap-5">
+                                <div className="rounded-[1.75rem] border border-white/10 overflow-hidden bg-[#0B0B0B]">
+                                  <div className="px-4 py-3 border-b border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/45">
+                                    Previa gerada
+                                  </div>
+                                  <div className="aspect-[3/4]">
+                                    {order.previewImageUrl ? (
+                                      <img src={order.previewImageUrl} alt={`Previa do pedido ${order.id}`} className="w-full h-full object-contain bg-[#0B0B0B]" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-white/25 font-black">
+                                        PREVIA INDISPONIVEL
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="rounded-[1.75rem] border border-white/10 overflow-hidden bg-[#0B0B0B]">
+                                  <div className="px-4 py-3 border-b border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/45">
+                                    Foto enviada pelo cliente
+                                  </div>
+                                  <div className="aspect-[3/4]">
+                                    {order.referenceImageUrl ? (
+                                      <img src={order.referenceImageUrl} alt={`Imagem de referencia do pedido ${order.id}`} className="w-full h-full object-contain bg-[#0B0B0B]" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-white/25 font-black">
+                                        IMAGEM INDISPONIVEL
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Estilo escolhido</p>
+                                  <p className="text-lg font-black">{order.styleName || 'Roupa Aleatoria'}</p>
+                                </div>
+                                <div className="sm:min-w-[300px]">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Atualizar status</p>
+                                  <div className="flex flex-col sm:flex-row gap-3">
+                                    <select
+                                      value={adminStatusDrafts[order.id] || order.status}
+                                      onChange={(event) => handleAdminStatusDraftChange(order.id, event.target.value as OrderStatus)}
+                                      className="flex-1 rounded-[1rem] border border-white/10 bg-[#0B0B0B] px-4 py-3 text-sm font-black text-white focus:outline-none focus:border-funko-blue"
+                                      disabled={updatingOrderId === order.id}
+                                    >
+                                      {ORDER_STATUS_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleAdminStatusSave(order)}
+                                      disabled={updatingOrderId === order.id || (adminStatusDrafts[order.id] || order.status) === order.status}
+                                      className="rounded-[1rem] bg-funko-blue px-5 py-3 text-sm font-black text-white transition-all hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      {updatingOrderId === order.id ? 'SALVANDO...' : 'SALVAR STATUS'}
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="text-left sm:text-right">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Valor do pedido</p>
+                                  <p className="text-2xl font-black text-funko-green">R$ {order.totalAmount.toFixed(2).replace('.', ',')}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-[2rem] border border-dashed border-white/10 bg-[#101010] p-8">
+                          <p className="text-white/65 text-lg font-medium mb-4">
+                            Ainda nao existem pedidos para o painel de admin.
+                          </p>
+                          <p className="text-white/35 font-bold">
+                            Assim que os clientes enviarem pedidos, as fotos de referencia e as previas vao aparecer aqui.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="pop-card p-16 text-center">

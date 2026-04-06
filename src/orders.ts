@@ -1,7 +1,31 @@
 import { getSupabaseClient } from './supabase';
-import { SavedOrder, SubjectType } from './types';
+import { ORDER_STATUSES, OrderStatus, SavedOrder, SubjectType } from './types';
 
 const BONECOS_BUCKET = 'bonecos';
+const ORDER_SELECT = `
+  id,
+  user_id,
+  subject_type,
+  style_id,
+  style_name,
+  status,
+  total_amount,
+  preview_image_path,
+  reference_image_path,
+  prompt_snapshot,
+  created_at,
+  customer:profiles!orders_user_id_fkey (
+    full_name,
+    email,
+    avatar_url
+  )
+`;
+
+interface OrderCustomerRow {
+  full_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+}
 
 interface OrderRow {
   id: string;
@@ -15,6 +39,7 @@ interface OrderRow {
   reference_image_path: string | null;
   prompt_snapshot: string | null;
   created_at: string;
+  customer: OrderCustomerRow | OrderCustomerRow[] | null;
 }
 
 interface CreateOrderInput {
@@ -25,6 +50,10 @@ interface CreateOrderInput {
   referenceImageDataUrl: string;
   previewImageDataUrl: string;
   promptSnapshot?: string | null;
+}
+
+function normalizeOrderStatus(status: string): OrderStatus {
+  return ORDER_STATUSES.includes(status as OrderStatus) ? (status as OrderStatus) : 'pending';
 }
 
 function getFileExtension(mimeType: string) {
@@ -88,19 +117,29 @@ async function createSignedUrl(path: string | null) {
 }
 
 async function mapOrder(row: OrderRow): Promise<SavedOrder> {
+  const customer = Array.isArray(row.customer) ? row.customer[0] || null : row.customer;
+  const [previewImageUrl, referenceImageUrl] = await Promise.all([
+    createSignedUrl(row.preview_image_path),
+    createSignedUrl(row.reference_image_path),
+  ]);
+
   return {
     id: row.id,
     userId: row.user_id,
     subjectType: row.subject_type,
     styleId: row.style_id,
     styleName: row.style_name,
-    status: row.status,
+    status: normalizeOrderStatus(row.status),
     totalAmount: Number(row.total_amount),
     previewImagePath: row.preview_image_path,
-    previewImageUrl: await createSignedUrl(row.preview_image_path),
+    previewImageUrl,
     referenceImagePath: row.reference_image_path,
+    referenceImageUrl,
     promptSnapshot: row.prompt_snapshot,
     createdAt: row.created_at,
+    customerName: customer?.full_name ?? null,
+    customerEmail: customer?.email ?? null,
+    customerAvatarUrl: customer?.avatar_url ?? null,
   };
 }
 
@@ -108,7 +147,7 @@ export async function listOrders(): Promise<SavedOrder[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('orders')
-    .select('*')
+    .select(ORDER_SELECT)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -116,6 +155,41 @@ export async function listOrders(): Promise<SavedOrder[]> {
   }
 
   return Promise.all(((data || []) as OrderRow[]).map(mapOrder));
+}
+
+export async function listAdminOrders(): Promise<SavedOrder[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('orders')
+    .select(ORDER_SELECT)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error('Nao foi possivel carregar o painel de admin.');
+  }
+
+  return Promise.all(((data || []) as OrderRow[]).map(mapOrder));
+}
+
+export async function updateOrderStatus(orderId: string, status: OrderStatus): Promise<SavedOrder> {
+  const supabase = getSupabaseClient();
+
+  if (!ORDER_STATUSES.includes(status)) {
+    throw new Error('Status de pedido invalido.');
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status })
+    .eq('id', orderId)
+    .select(ORDER_SELECT)
+    .single();
+
+  if (error || !data) {
+    throw new Error('Nao foi possivel atualizar o status deste pedido.');
+  }
+
+  return mapOrder(data as OrderRow);
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<SavedOrder> {
@@ -147,7 +221,7 @@ export async function createOrder(input: CreateOrderInput): Promise<SavedOrder> 
       reference_image_path: referenceImagePath,
       prompt_snapshot: input.promptSnapshot ?? null,
     })
-    .select('*')
+    .select(ORDER_SELECT)
     .single();
 
   if (error || !data) {

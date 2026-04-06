@@ -20,6 +20,24 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.profiles
+add column if not exists is_admin boolean not null default false;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and is_admin = true
+  );
+$$;
+
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -80,6 +98,8 @@ after insert on auth.users
 for each row
 execute procedure public.handle_new_user();
 
+grant execute on function public.is_admin() to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.orders enable row level security;
 
@@ -87,7 +107,7 @@ drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
 on public.profiles
 for select
-using (auth.uid() = id);
+using (auth.uid() = id or public.is_admin());
 
 drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own"
@@ -106,13 +126,20 @@ drop policy if exists "orders_select_own" on public.orders;
 create policy "orders_select_own"
 on public.orders
 for select
-using (auth.uid() = user_id);
+using (auth.uid() = user_id or public.is_admin());
 
 drop policy if exists "orders_insert_own" on public.orders;
 create policy "orders_insert_own"
 on public.orders
 for insert
 with check (auth.uid() = user_id);
+
+drop policy if exists "orders_update_admin" on public.orders;
+create policy "orders_update_admin"
+on public.orders
+for update
+using (public.is_admin())
+with check (public.is_admin());
 
 insert into storage.buckets (id, name, public)
 values ('bonecos', 'bonecos', false)
@@ -125,7 +152,10 @@ for select
 to authenticated
 using (
   bucket_id = 'bonecos'
-  and (storage.foldername(name))[1] = auth.uid()::text
+  and (
+    (storage.foldername(name))[1] = auth.uid()::text
+    or public.is_admin()
+  )
 );
 
 drop policy if exists "bonecos_insert_own" on storage.objects;

@@ -1,4 +1,6 @@
 export type SubjectType = 'person' | 'pet';
+export const ORDER_STATUSES = ['pending', 'in_production', 'printed', 'shipped'] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export interface BodyStyle {
   id: string;
@@ -31,11 +33,15 @@ export interface SavedOrder {
   subjectType: SubjectType;
   styleId: string | null;
   styleName: string | null;
-  status: string;
+  status: OrderStatus;
   totalAmount: number;
   previewImagePath: string | null;
   previewImageUrl: string | null;
   referenceImagePath: string | null;
+  referenceImageUrl: string | null;
   promptSnapshot: string | null;
   createdAt: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  customerAvatarUrl: string | null;
 }

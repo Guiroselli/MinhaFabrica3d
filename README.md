@@ -16,6 +16,8 @@ Hoje o projeto esta posicionado para apresentar a marca `Minha Fabrica3D` com fo
 - Fluxo de conta com login por e-mail e Google
 - Persistencia de pedidos e imagens no Supabase
 - Area "Minha Conta" para acompanhar sessao e pedidos salvos
+- Painel de admin para visualizar pedidos recebidos e as imagens enviadas pelos clientes
+- Atualizacao de status do pedido pelo painel admin (`Aguardando`, `Em producao`, `Impresso`, `Enviado`)
 
 ## Stack
 
@@ -100,6 +102,23 @@ Descricao rapida:
    - `http://localhost:3000`
    - a URL final de producao
 
+## Admins
+
+Depois desta atualizacao, rode novamente o SQL de `supabase/setup.sql` no Supabase para criar a coluna `is_admin` e liberar as policies de admin.
+
+Para transformar uma conta existente em admin:
+
+1. Garanta que a pessoa ja criou a conta no site
+2. No `SQL Editor` do Supabase, rode:
+
+```sql
+update public.profiles
+set is_admin = true
+where email = 'admin@seudominio.com';
+```
+
+3. A pessoa precisa sair e entrar novamente para o novo papel aparecer no app
+
 Documentacao auxiliar:
 
 - `supabase/README.md`
@@ -127,6 +146,7 @@ src/constants.ts     -> estilos e cards da galeria
 src/types.ts         -> tipos compartilhados
 server.mjs           -> servidor Express para producao
 supabase/setup.sql   -> schema, policies e storage
+supabase/README.md   -> passo a passo do Supabase e observacoes operacionais
 historico_ia.txt     -> log de alteracoes do projeto
 ```
 

@@ -6,6 +6,7 @@ export interface AuthUser {
   name: string;
   email: string;
   createdAt: string;
+  isAdmin: boolean;
   avatarUrl?: string | null;
   provider?: string | null;
 }
@@ -16,6 +17,7 @@ interface ProfileRow {
   email: string | null;
   avatar_url: string | null;
   provider: string | null;
+  is_admin: boolean | null;
   created_at: string;
 }
 
@@ -34,6 +36,7 @@ function buildFallbackUser(user: User): AuthUser {
     name: fallbackName,
     email: user.email || '',
     createdAt: user.created_at,
+    isAdmin: false,
     avatarUrl: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
     provider: user.app_metadata?.provider || null,
   };
@@ -73,7 +76,7 @@ async function ensureProfile(user: User): Promise<AuthUser> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, email, avatar_url, provider, created_at')
+    .select('id, full_name, email, avatar_url, provider, is_admin, created_at')
     .eq('id', user.id)
     .single();
 
@@ -88,6 +91,7 @@ async function ensureProfile(user: User): Promise<AuthUser> {
     name: profile.full_name || fallbackUser.name,
     email: profile.email || fallbackUser.email,
     createdAt: profile.created_at || fallbackUser.createdAt,
+    isAdmin: Boolean(profile.is_admin),
     avatarUrl: profile.avatar_url,
     provider: profile.provider,
   };
