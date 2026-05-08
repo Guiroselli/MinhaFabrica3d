@@ -18,6 +18,7 @@ Hoje o projeto esta posicionado para apresentar a marca `Minha Fabrica3D` com fo
 - Area "Minha Conta" para acompanhar sessao e pedidos salvos
 - Painel de admin para visualizar pedidos recebidos e as imagens enviadas pelos clientes
 - Atualizacao de status do pedido pelo painel admin (`Aguardando`, `Em producao`, `Impresso`, `Enviado`)
+- Busca por cliente/e-mail/estilo e filtro por status dentro do painel admin
 
 ## Stack
 

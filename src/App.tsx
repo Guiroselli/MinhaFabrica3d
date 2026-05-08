@@ -24,16 +24,18 @@ import {
   LogOut,
   Mail,
   Lock,
-  UserRound
+  UserRound,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleGenAI } from '@google/genai';
-import { SubjectType, BodyStyle, CustomOrder, ORDER_STATUSES, OrderStatus, SavedOrder } from './types';
+import { SubjectType, BodyStyle, CustomOrder, OrderStatus, SavedOrder } from './types';
 import { BODY_STYLES, SHOWCASE } from './constants';
 import { AuthUser, getSessionUser, loginUser, loginWithGoogle, logoutUser, registerUser, subscribeToAuthChanges } from './auth';
 import { createOrder, listAdminOrders, listOrders, updateOrderStatus } from './orders';
-import logoGoogle from '../logoGoogle.jpg';
-import heroBonecoExample from '../boneco3d_enhanced.png';
+const logoGoogle = 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg';
+const heroBonecoExample = 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=600&auto=format&fit=crop';
 
 type Step = 'welcome' | 'type' | 'upload' | 'style' | 'preview' | 'review' | 'success';
 type View = 'home' | 'auth' | 'account';
@@ -75,7 +77,7 @@ function getOrderStatusBadgeClasses(status: string) {
     case 'shipped':
       return 'border-funko-yellow/20 bg-funko-yellow/10 text-funko-yellow';
     default:
-      return 'border-white/10 bg-white/5 text-white/65';
+      return 'dark:border-white/10 border-black/10 bg-white/5 dark:text-white/65 text-black/65';
   }
 }
 
@@ -85,6 +87,19 @@ const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
 export default function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('theme') as 'light' | 'dark') || 'dark';
+  });
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
   const [view, setView] = useState<View>('home');
   const [step, setStep] = useState<Step>('welcome');
   const [subjectType, setSubjectType] = useState<SubjectType | null>(null);
@@ -101,9 +116,10 @@ export default function App() {
   const [orders, setOrders] = useState<SavedOrder[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [adminSearchTerm, setAdminSearchTerm] = useState('');
+  const [adminStatusFilter, setAdminStatusFilter] = useState<'all' | OrderStatus>('all');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
-  const [adminStatusDrafts, setAdminStatusDrafts] = useState<Record<string, OrderStatus>>({});
-  const [adminStatusFeedback, setAdminStatusFeedback] = useState<string | null>(null);
+  const [pendingStatusByOrderId, setPendingStatusByOrderId] = useState<Record<string, OrderStatus>>({});
   const [adminStatusError, setAdminStatusError] = useState<string | null>(null);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -135,6 +151,27 @@ export default function App() {
   const isAdmin = Boolean(authUser?.isAdmin);
   const personOrdersCount = orders.filter((order) => order.subjectType === 'person').length;
   const petOrdersCount = orders.filter((order) => order.subjectType === 'pet').length;
+  const normalizedAdminSearchTerm = adminSearchTerm.trim().toLowerCase();
+  const hasAdminFilters = normalizedAdminSearchTerm.length > 0 || adminStatusFilter !== 'all';
+  const filteredAdminOrders = isAdmin
+    ? orders.filter((order) => {
+        const matchesStatus = adminStatusFilter === 'all' || order.status === adminStatusFilter;
+        const matchesSearch =
+          normalizedAdminSearchTerm.length === 0 ||
+          [
+            order.customerName,
+            order.customerEmail,
+            order.styleName,
+            order.id,
+            order.subjectType === 'person' ? 'pessoa' : 'pet',
+            getOrderStatusLabel(order.status),
+          ]
+            .filter(Boolean)
+            .some((value) => value!.toLowerCase().includes(normalizedAdminSearchTerm));
+
+        return matchesStatus && matchesSearch;
+      })
+    : orders;
   const accountButtonLabel = authUser ? firstName.toUpperCase() : 'MINHA CONTA';
   const shouldShowOAuthProcessing = view === 'account' && hasPendingAuthReturn && !authUser;
 
@@ -522,8 +559,9 @@ export default function App() {
     } finally {
       setAuthUser(null);
       setOrders([]);
-      setAdminStatusDrafts({});
-      setAdminStatusFeedback(null);
+      setAdminSearchTerm('');
+      setAdminStatusFilter('all');
+      setPendingStatusByOrderId({});
       setAdminStatusError(null);
       setAuthForm(INITIAL_AUTH_FORM);
       setAuthMode('login');
@@ -572,57 +610,49 @@ export default function App() {
     if (!authUser) {
       savePostAuthAction('finalizeOrder');
       openAuthView('login');
-      setAuthError('Entre na sua conta para salvar o pedido e as imagens no Supabase.');
+      setAuthError(null);
       return;
     }
 
     await finalizeOrderForUser(authUser);
   };
 
-  const handleAdminStatusDraftChange = (orderId: string, status: OrderStatus) => {
-    if (!ORDER_STATUSES.includes(status)) {
-      return;
-    }
 
-    setAdminStatusError(null);
-    setAdminStatusFeedback(null);
-    setAdminStatusDrafts((current) => ({
-      ...current,
-      [orderId]: status,
-    }));
-  };
 
-  const handleAdminStatusSave = async (order: SavedOrder) => {
-    const nextStatus = adminStatusDrafts[order.id] || order.status;
-
+  // Função central da integração com o Gemini
+  const handleAdminStatusChange = async (order: SavedOrder, nextStatus: OrderStatus) => {
     if (nextStatus === order.status) {
       return;
     }
 
     setAdminStatusError(null);
-    setAdminStatusFeedback(null);
     setUpdatingOrderId(order.id);
+    setPendingStatusByOrderId((current) => ({
+      ...current,
+      [order.id]: nextStatus,
+    }));
 
     try {
       const updatedOrder = await updateOrderStatus(order.id, nextStatus);
 
       setOrders((current) => current.map((item) => (item.id === updatedOrder.id ? updatedOrder : item)));
-      setAdminStatusDrafts((current) => {
-        const nextDrafts = { ...current };
-        delete nextDrafts[order.id];
-        return nextDrafts;
+      setPendingStatusByOrderId((current) => {
+        const nextMap = { ...current };
+        delete nextMap[order.id];
+        return nextMap;
       });
-      setAdminStatusFeedback(
-        `Status de ${updatedOrder.customerName || 'cliente'} atualizado para ${getOrderStatusLabel(updatedOrder.status)}.`,
-      );
     } catch (error) {
+      setPendingStatusByOrderId((current) => {
+        const nextMap = { ...current };
+        delete nextMap[order.id];
+        return nextMap;
+      });
       setAdminStatusError(error instanceof Error ? error.message : 'Nao foi possivel atualizar o status deste pedido.');
     } finally {
       setUpdatingOrderId(null);
     }
   };
 
-  // Função central da integração com o Gemini
   const generateGeminiPreview = async () => {
     if (!uploadedPhoto) return;
     if (!ai) {
@@ -853,9 +883,9 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
   return (
     <div className="min-h-screen pb-24 md:pb-0">
       {/* Header Responsivo */}
-      <nav className="fixed top-0 w-full z-50 bg-[#0A0A0A]/80 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={reset}>
+      <nav className="fixed top-0 w-full z-50 dark:bg-[#0A0A0A]/80 bg-white/80 backdrop-blur-xl border-b dark:border-white/5 border-black/5">
+        <div className="w-full px-6 lg:px-12 h-20 flex items-center justify-between relative">
+          <div className="flex items-center gap-3 cursor-pointer group z-10" onClick={reset}>
             <div className="w-10 h-10 bg-funko-blue rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,174,239,0.4)] group-hover:scale-110 transition-transform">
               <Box className="w-6 h-6 text-white" />
             </div>
@@ -865,13 +895,19 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
           </div>
           
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-bold text-white/60">
-            <button onClick={() => scrollTo(howItWorksRef)} className="hover:text-white transition-colors">Como Funciona</button>
-            <button onClick={() => scrollTo(galleryRef)} className="hover:text-white transition-colors">Galeria</button>
-            <button onClick={() => scrollTo(pricingRef)} className="hover:text-white transition-colors">Preços</button>
-            <button onClick={() => scrollTo(faqRef)} className="hover:text-white transition-colors">Dúvidas</button>
+          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-8 text-sm font-bold dark:text-white/60 text-black/60 w-max">
+            <button onClick={() => scrollTo(howItWorksRef)} className="hover:dark:text-white hover:text-black transition-colors">Como Funciona</button>
+            <button onClick={() => scrollTo(galleryRef)} className="hover:dark:text-white hover:text-black transition-colors">Galeria</button>
+            <button onClick={() => scrollTo(pricingRef)} className="hover:dark:text-white hover:text-black transition-colors">Preços</button>
+            <button onClick={() => scrollTo(faqRef)} className="hover:dark:text-white hover:text-black transition-colors">Dúvidas</button>
           </div>
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center gap-4 z-10">
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-2.5 rounded-full dark:bg-white/5 bg-black/5 dark:text-white/60 text-black/60 hover:dark:bg-white/10 hover:bg-black/10 transition-colors"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
             <button
               onClick={openAccountView}
               disabled={isAuthLoading}
@@ -881,13 +917,21 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
             </button>
           </div>
 
-          {/* Mobile Menu Toggle */}
-          <button 
-            className="md:hidden text-white p-2"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          {/* Mobile Actions */}
+          <div className="flex md:hidden items-center gap-3 z-10">
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-2 rounded-full dark:text-white/60 text-black/60"
+            >
+              {theme === 'dark' ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
+            </button>
+            <button 
+              className="dark:text-white text-black p-2"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Dropdown */}
@@ -897,9 +941,9 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-[#141414] border-b border-white/5 overflow-hidden"
+              className="md:hidden dark:bg-[#141414] bg-white border-b dark:border-white/5 border-black/5 overflow-hidden"
             >
-              <div className="p-6 flex flex-col gap-6 text-center font-bold text-white/80">
+              <div className="p-6 flex flex-col gap-6 text-center font-bold dark:text-white/80 text-black/80">
                 <button onClick={() => scrollTo(howItWorksRef)}>Como Funciona</button>
                 <button onClick={() => scrollTo(galleryRef)}>Galeria</button>
                 <button onClick={() => scrollTo(pricingRef)}>Preços</button>
@@ -940,12 +984,12 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-colors duration-300 ${
                         isActive ? 'bg-funko-blue text-white shadow-[0_0_15px_rgba(0,174,239,0.5)]' 
                         : isPassed ? 'bg-funko-blue text-white' 
-                        : 'bg-[#141414] border-2 border-white/5 text-white/20'
+                        : 'dark:bg-[#141414] bg-white border-2 dark:border-white/5 border-black/5 dark:text-white/20 text-black/20'
                       }`}
                     >
                       {isPassed ? <Check className="w-5 h-5" /> : idx + 1}
                     </motion.div>
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${isActive || isPassed ? 'text-funko-blue' : 'text-white/20'}`}>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${isActive || isPassed ? 'text-funko-blue' : 'dark:text-white/20 text-black/20'}`}>
                       {s.label}
                     </span>
                   </div>
@@ -978,7 +1022,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       <br />
                       SEUS PEDIDOS
                     </h2>
-                    <p className="text-white/55 text-lg md:text-xl font-medium max-w-xl mb-10">
+                    <p className="dark:text-white/55 text-black/55 text-lg md:text-xl font-medium max-w-xl mb-10">
                       Crie sua conta para salvar seu acesso, voltar aos pedidos e acompanhar a producao da sua miniatura sem depender de link solto.
                     </p>
                   </div>
@@ -990,7 +1034,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       </div>
                       <div>
                         <p className="font-black text-lg">Conta real para clientes</p>
-                        <p className="text-white/45 font-medium">Seu acesso fica ligado ao seu e-mail e salvo com sessao protegida.</p>
+                        <p className="dark:text-white/45 text-black/45 font-medium">Seu acesso fica ligado ao seu e-mail e salvo com sessao protegida.</p>
                       </div>
                     </div>
                     <div className="pop-card p-5 flex items-start gap-4">
@@ -999,7 +1043,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       </div>
                       <div>
                         <p className="font-black text-lg">Pedidos centralizados</p>
-                        <p className="text-white/45 font-medium">A area da conta fica pronta para receber status, revisoes e historico de compra.</p>
+                        <p className="dark:text-white/45 text-black/45 font-medium">A area da conta fica pronta para receber status, revisoes e historico de compra.</p>
                       </div>
                     </div>
                     <div className="pop-card p-5 flex items-start gap-4">
@@ -1008,7 +1052,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       </div>
                       <div>
                         <p className="font-black text-lg">Fluxo alinhado com o site</p>
-                        <p className="text-white/45 font-medium">Entrou, acessou a conta e ja consegue voltar para criar uma nova peca 3D.</p>
+                        <p className="dark:text-white/45 text-black/45 font-medium">Entrou, acessou a conta e ja consegue voltar para criar uma nova peca 3D.</p>
                       </div>
                     </div>
                   </div>
@@ -1023,7 +1067,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                         setAuthError(null);
                       }}
                       className={`flex-1 rounded-2xl py-4 font-black transition-colors ${
-                        authMode === 'login' ? 'bg-funko-blue text-white shadow-[0_0_20px_rgba(0,174,239,0.25)]' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                        authMode === 'login' ? 'bg-funko-blue text-white shadow-[0_0_20px_rgba(0,174,239,0.25)]' : 'bg-white/5 dark:text-white/50 text-black/50 hover:bg-white/10'
                       }`}
                     >
                       ENTRAR
@@ -1035,7 +1079,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                         setAuthError(null);
                       }}
                       className={`flex-1 rounded-2xl py-4 font-black transition-colors ${
-                        authMode === 'register' ? 'bg-funko-yellow text-[#0A0A0A] shadow-[0_0_20px_rgba(255,210,0,0.22)]' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                        authMode === 'register' ? 'bg-funko-yellow text-[#0A0A0A] shadow-[0_0_20px_rgba(255,210,0,0.22)]' : 'bg-white/5 dark:text-white/50 text-black/50 hover:bg-white/10'
                       }`}
                     >
                       CRIAR CONTA
@@ -1045,14 +1089,14 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   <form onSubmit={handleAuthSubmit} className="space-y-5">
                     {authMode === 'register' && (
                       <label className="block">
-                        <span className="text-xs font-black uppercase tracking-widest text-white/40">Nome completo</span>
+                        <span className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40">Nome completo</span>
                         <div className="mt-2 relative">
-                          <UserRound className="w-5 h-5 text-white/25 absolute left-4 top-1/2 -translate-y-1/2" />
+                          <UserRound className="w-5 h-5 dark:text-white/25 text-black/25 absolute left-4 top-1/2 -translate-y-1/2" />
                           <input
                             type="text"
                             value={authForm.name}
                             onChange={(event) => handleAuthFieldChange('name', event.target.value)}
-                            className="w-full bg-[#0F0F0F] border border-white/10 rounded-2xl pl-12 pr-4 py-4 font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-funko-blue"
+                            className="w-full dark:bg-[#0F0F0F] bg-white border dark:border-white/10 border-black/10 rounded-2xl pl-12 pr-4 py-4 font-medium dark:text-white text-gray-900 placeholder:dark:text-white/20 text-black/20 focus:outline-none focus:border-funko-blue"
                             placeholder="Seu nome"
                             autoComplete="name"
                           />
@@ -1061,14 +1105,14 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     )}
 
                     <label className="block">
-                      <span className="text-xs font-black uppercase tracking-widest text-white/40">E-mail</span>
+                      <span className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40">E-mail</span>
                       <div className="mt-2 relative">
-                        <Mail className="w-5 h-5 text-white/25 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <Mail className="w-5 h-5 dark:text-white/25 text-black/25 absolute left-4 top-1/2 -translate-y-1/2" />
                         <input
                           type="email"
                           value={authForm.email}
                           onChange={(event) => handleAuthFieldChange('email', event.target.value)}
-                          className="w-full bg-[#0F0F0F] border border-white/10 rounded-2xl pl-12 pr-4 py-4 font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-funko-blue"
+                          className="w-full dark:bg-[#0F0F0F] bg-white border dark:border-white/10 border-black/10 rounded-2xl pl-12 pr-4 py-4 font-medium dark:text-white text-gray-900 placeholder:dark:text-white/20 text-black/20 focus:outline-none focus:border-funko-blue"
                           placeholder="voce@email.com"
                           autoComplete="email"
                         />
@@ -1076,14 +1120,14 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     </label>
 
                     <label className="block">
-                      <span className="text-xs font-black uppercase tracking-widest text-white/40">Senha</span>
+                      <span className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40">Senha</span>
                       <div className="mt-2 relative">
-                        <Lock className="w-5 h-5 text-white/25 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <Lock className="w-5 h-5 dark:text-white/25 text-black/25 absolute left-4 top-1/2 -translate-y-1/2" />
                         <input
                           type="password"
                           value={authForm.password}
                           onChange={(event) => handleAuthFieldChange('password', event.target.value)}
-                          className="w-full bg-[#0F0F0F] border border-white/10 rounded-2xl pl-12 pr-4 py-4 font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-funko-blue"
+                          className="w-full dark:bg-[#0F0F0F] bg-white border dark:border-white/10 border-black/10 rounded-2xl pl-12 pr-4 py-4 font-medium dark:text-white text-gray-900 placeholder:dark:text-white/20 text-black/20 focus:outline-none focus:border-funko-blue"
                           placeholder="Sua senha"
                           autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
                         />
@@ -1092,14 +1136,14 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
 
                     {authMode === 'register' && (
                       <label className="block">
-                        <span className="text-xs font-black uppercase tracking-widest text-white/40">Confirmar senha</span>
+                        <span className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40">Confirmar senha</span>
                         <div className="mt-2 relative">
-                          <Lock className="w-5 h-5 text-white/25 absolute left-4 top-1/2 -translate-y-1/2" />
+                          <Lock className="w-5 h-5 dark:text-white/25 text-black/25 absolute left-4 top-1/2 -translate-y-1/2" />
                           <input
                             type="password"
                             value={authForm.confirmPassword}
                             onChange={(event) => handleAuthFieldChange('confirmPassword', event.target.value)}
-                            className="w-full bg-[#0F0F0F] border border-white/10 rounded-2xl pl-12 pr-4 py-4 font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-funko-blue"
+                            className="w-full dark:bg-[#0F0F0F] bg-white border dark:border-white/10 border-black/10 rounded-2xl pl-12 pr-4 py-4 font-medium dark:text-white text-gray-900 placeholder:dark:text-white/20 text-black/20 focus:outline-none focus:border-funko-blue"
                             placeholder="Repita a senha"
                             autoComplete="new-password"
                           />
@@ -1129,7 +1173,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
 
                     <div className="flex items-center gap-4 pt-2">
                       <div className="h-px flex-1 bg-white/10" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.28em] text-white/30">ou</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.28em] dark:text-white/30 text-black/30">ou</span>
                       <div className="h-px flex-1 bg-white/10" />
                     </div>
 
@@ -1146,8 +1190,8 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     </button>
                   </form>
 
-                  <div className="mt-8 pt-8 border-t border-white/5 text-center">
-                    <p className="text-white/40 font-medium mb-4">
+                  <div className="mt-8 pt-8 border-t dark:border-white/5 border-black/5 text-center">
+                    <p className="dark:text-white/40 text-black/40 font-medium mb-4">
                       Quer voltar para a landing antes de entrar?
                     </p>
                     <button
@@ -1180,7 +1224,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   <h2 className="text-5xl md:text-6xl font-display font-black tracking-tight mb-4">
                     {isAuthLoading ? 'Carregando conta...' : isAdmin ? `Painel de ${firstName}` : `Bem-vindo, ${firstName}`}
                   </h2>
-                  <p className="text-white/55 text-lg max-w-2xl">
+                  <p className="dark:text-white/55 text-black/55 text-lg max-w-2xl">
                     {isAdmin
                       ? 'Aqui o admin acompanha os pedidos recebidos e acessa as imagens de referencia e as previas enviadas pelos clientes.'
                       : 'Aqui o cliente acompanha dados de acesso e, no proximo passo, pedidos, revisoes e andamento de producao.'}
@@ -1198,7 +1242,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="bg-white/5 border border-white/10 text-white px-8 py-4 rounded-[1.5rem] font-black hover:bg-white/10 transition-colors flex items-center justify-center gap-3"
+                    className="bg-white/5 border dark:border-white/10 border-black/10 text-white px-8 py-4 rounded-[1.5rem] font-black hover:bg-white/10 transition-colors flex items-center justify-center gap-3"
                   >
                     <LogOut className="w-5 h-5" />
                     SAIR
@@ -1216,36 +1260,36 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               ) : authUser ? (
                 <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-8">
                   <div className="pop-card p-8">
-                    <p className="text-xs font-black uppercase tracking-widest text-white/40 mb-4">Dados da conta</p>
+                    <p className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40 mb-4">Dados da conta</p>
                     <div className="space-y-6">
                       {authUser.avatarUrl && (
-                        <div className="w-24 h-24 rounded-[2rem] overflow-hidden border border-white/10 shadow-xl">
+                        <div className="w-24 h-24 rounded-[2rem] overflow-hidden border dark:border-white/10 border-black/10 shadow-xl">
                           <img src={authUser.avatarUrl} alt={authUser.name} className="w-full h-full object-cover" />
                         </div>
                       )}
                       <div>
-                        <p className="text-white/40 font-bold text-sm uppercase tracking-widest mb-2">Nome</p>
+                        <p className="dark:text-white/40 text-black/40 font-bold text-sm uppercase tracking-widest mb-2">Nome</p>
                         <p className="text-2xl font-black">{authUser.name}</p>
                       </div>
                       <div>
-                        <p className="text-white/40 font-bold text-sm uppercase tracking-widest mb-2">E-mail</p>
-                        <p className="text-lg font-bold text-white/75 break-all">{authUser.email}</p>
+                        <p className="dark:text-white/40 text-black/40 font-bold text-sm uppercase tracking-widest mb-2">E-mail</p>
+                        <p className="text-lg font-bold dark:text-white/75 text-black/75 break-all">{authUser.email}</p>
                       </div>
                       <div>
-                        <p className="text-white/40 font-bold text-sm uppercase tracking-widest mb-2">Conta criada em</p>
-                        <p className="text-lg font-bold text-white/75">
+                        <p className="dark:text-white/40 text-black/40 font-bold text-sm uppercase tracking-widest mb-2">Conta criada em</p>
+                        <p className="text-lg font-bold dark:text-white/75 text-black/75">
                           {new Date(authUser.createdAt).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
                       <div>
-                        <p className="text-white/40 font-bold text-sm uppercase tracking-widest mb-2">Metodo de acesso</p>
-                        <p className="text-lg font-bold text-white/75 uppercase">{authUser.provider || 'email'}</p>
+                        <p className="dark:text-white/40 text-black/40 font-bold text-sm uppercase tracking-widest mb-2">Metodo de acesso</p>
+                        <p className="text-lg font-bold dark:text-white/75 text-black/75 uppercase">{authUser.provider || 'email'}</p>
                       </div>
                       {authUser.isAdmin && (
                         <div className="rounded-[1.5rem] border border-funko-yellow/20 bg-funko-yellow/10 px-5 py-4">
                           <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-2">Nivel de acesso</p>
-                          <p className="text-lg font-black text-white">Administrador</p>
-                          <p className="text-sm font-medium text-white/55 mt-2">
+                          <p className="text-lg font-black dark:text-white text-gray-900">Administrador</p>
+                          <p className="text-sm font-medium dark:text-white/55 text-black/55 mt-2">
                             Esta conta pode visualizar os pedidos recebidos e as imagens enviadas pelos clientes.
                           </p>
                         </div>
@@ -1256,7 +1300,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   <div className="pop-card p-8">
                     <div className="flex items-center justify-between gap-4 mb-8">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-white/40 mb-2">
+                        <p className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40 mb-2">
                           {isAdmin ? 'Resumo administrativo' : 'Pedidos'}
                         </p>
                         <h3 className="text-3xl font-black">{isAdmin ? 'Visao geral do atendimento' : 'Seu painel esta pronto'}</h3>
@@ -1268,23 +1312,23 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
 
                     {isAdmin ? (
                       <div className="grid sm:grid-cols-3 gap-4">
-                        <div className="rounded-[1.75rem] border border-white/10 bg-[#101010] p-5">
-                          <p className="text-xs font-black uppercase tracking-widest text-white/35 mb-3">Pedidos recebidos</p>
+                        <div className="rounded-[1.75rem] border dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-5">
+                          <p className="text-xs font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-3">Pedidos recebidos</p>
                           <p className="text-4xl font-black text-funko-yellow">{orders.length}</p>
                         </div>
-                        <div className="rounded-[1.75rem] border border-white/10 bg-[#101010] p-5">
-                          <p className="text-xs font-black uppercase tracking-widest text-white/35 mb-3">Pessoas</p>
+                        <div className="rounded-[1.75rem] border dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-5">
+                          <p className="text-xs font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-3">Pessoas</p>
                           <p className="text-4xl font-black text-funko-blue">{personOrdersCount}</p>
                         </div>
-                        <div className="rounded-[1.75rem] border border-white/10 bg-[#101010] p-5">
-                          <p className="text-xs font-black uppercase tracking-widest text-white/35 mb-3">Pets</p>
+                        <div className="rounded-[1.75rem] border dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-5">
+                          <p className="text-xs font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-3">Pets</p>
                           <p className="text-4xl font-black text-funko-green">{petOrdersCount}</p>
                         </div>
                       </div>
                     ) : isOrdersLoading ? (
-                      <div className="rounded-[2rem] border border-dashed border-white/10 bg-[#101010] p-8 text-center">
+                      <div className="rounded-[2rem] border border-dashed dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-8 text-center">
                         <div className="w-14 h-14 border-8 border-funko-blue border-t-transparent rounded-full animate-spin mx-auto mb-5" />
-                        <p className="text-white/65 text-lg font-medium">Carregando pedidos salvos no Supabase...</p>
+                        <p className="dark:text-white/65 text-black/65 text-lg font-medium">Carregando pedidos salvos no Supabase...</p>
                       </div>
                     ) : ordersError ? (
                       <div className="rounded-[2rem] border border-red-500/20 bg-red-500/10 p-6">
@@ -1294,12 +1338,12 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     ) : orders.length > 0 ? (
                       <div className="grid sm:grid-cols-2 gap-5">
                         {orders.map((order) => (
-                          <div key={order.id} className="rounded-[2rem] border border-white/10 bg-[#101010] overflow-hidden">
-                            <div className="aspect-square bg-[#0B0B0B]">
+                          <div key={order.id} className="rounded-[2rem] border dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white overflow-hidden">
+                            <div className="aspect-square dark:bg-[#0B0B0B] bg-gray-100">
                               {order.previewImageUrl ? (
                                 <img src={order.previewImageUrl} alt={`Pedido ${order.id}`} className="w-full h-full object-cover" />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-white/25 font-black">
+                                <div className="w-full h-full flex items-center justify-center dark:text-white/25 text-black/25 font-black">
                                   PREVIA INDISPONIVEL
                                 </div>
                               )}
@@ -1309,7 +1353,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                                 <span className="text-[10px] font-black uppercase tracking-widest text-funko-blue">
                                   {order.subjectType === 'person' ? 'Pessoa' : 'Pet'}
                                 </span>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-white/35">
+                                <span className="text-[10px] font-black uppercase tracking-widest dark:text-white/35 text-black/35">
                                   {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                                 </span>
                               </div>
@@ -1319,17 +1363,17 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                                   {getOrderStatusLabel(order.status)}
                                 </span>
                               </div>
-                              <p className="text-white/70 font-black">R$ {order.totalAmount.toFixed(2).replace('.', ',')}</p>
+                              <p className="dark:text-white/70 text-black/70 font-black">R$ {order.totalAmount.toFixed(2).replace('.', ',')}</p>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="rounded-[2rem] border border-dashed border-white/10 bg-[#101010] p-8">
-                        <p className="text-white/65 text-lg font-medium mb-4">
+                      <div className="rounded-[2rem] border border-dashed dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-8">
+                        <p className="dark:text-white/65 text-black/65 text-lg font-medium mb-4">
                           Ainda nao existem pedidos ligados a esta conta.
                         </p>
-                        <p className="text-white/35 font-bold mb-8">
+                        <p className="dark:text-white/35 text-black/35 font-bold mb-8">
                           Quando voce finalizar um pedido, a previa e os dados ficam salvos no Supabase e aparecem aqui.
                         </p>
                         <button
@@ -1347,7 +1391,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <div className="pop-card p-8 lg:col-span-2">
                       <div className="flex items-center justify-between gap-4 mb-8">
                         <div>
-                          <p className="text-xs font-black uppercase tracking-widest text-white/40 mb-2">Pedidos e imagens</p>
+                          <p className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40 mb-2">Pedidos e imagens</p>
                           <h3 className="text-3xl font-black">Acesso completo aos envios dos clientes</h3>
                         </div>
                         <div className="w-14 h-14 rounded-2xl bg-funko-blue/10 text-funko-blue flex items-center justify-center border border-funko-blue/20">
@@ -1355,11 +1399,74 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                         </div>
                       </div>
 
-                      {adminStatusFeedback && (
-                        <div className="rounded-[1.5rem] border border-funko-green/20 bg-funko-green/10 px-5 py-4 text-sm font-bold text-funko-green mb-6">
-                          {adminStatusFeedback}
+                      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.6fr_auto] gap-4 mb-6">
+                        <label className="block">
+                          <span className="text-[10px] font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-2 block">
+                            Buscar pedido
+                          </span>
+                          <input
+                            type="text"
+                            value={adminSearchTerm}
+                            onChange={(event) => setAdminSearchTerm(event.target.value)}
+                            placeholder="Nome, e-mail, estilo ou ID"
+                            className="w-full rounded-[1rem] border dark:border-white/10 border-black/10 dark:bg-[#0B0B0B] bg-gray-100 px-4 py-3 text-sm font-bold dark:text-white text-black placeholder:dark:text-white/20 placeholder:text-black/30 focus:outline-none focus:border-funko-blue"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="text-[10px] font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-2 block">
+                            Filtrar status
+                          </span>
+                          <select
+                            value={adminStatusFilter}
+                            onChange={(event) => setAdminStatusFilter(event.target.value as 'all' | OrderStatus)}
+                            className="w-full rounded-[1rem] border dark:border-white/10 border-black/10 dark:bg-[#0B0B0B] bg-gray-100 px-4 py-3 text-sm font-black dark:text-white text-black focus:outline-none focus:border-funko-blue"
+                          >
+                            <option value="all">Todos os status</option>
+                            {ORDER_STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <div className="flex items-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdminSearchTerm('');
+                              setAdminStatusFilter('all');
+                            }}
+                            disabled={!hasAdminFilters}
+                            className="w-full rounded-[1rem] border dark:border-white/10 border-black/10 dark:bg-white/5 bg-white px-4 py-3 text-sm font-black dark:text-white/70 text-black/70 transition-colors hover:border-funko-blue disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            LIMPAR FILTROS
+                          </button>
                         </div>
-                      )}
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                        <p className="text-sm font-bold dark:text-white/45 text-black/45">
+                          {hasAdminFilters
+                            ? `${filteredAdminOrders.length} pedido(s) encontrado(s) com os filtros atuais.`
+                            : `Mostrando ${orders.length} pedido(s) recebidos.`}
+                        </p>
+                        {hasAdminFilters && (
+                          <div className="flex flex-wrap gap-2">
+                            {adminSearchTerm.trim() && (
+                              <span className="rounded-full border dark:border-white/10 border-black/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest dark:text-white/55 text-black/55">
+                                Busca: {adminSearchTerm.trim()}
+                              </span>
+                            )}
+                            {adminStatusFilter !== 'all' && (
+                              <span className={`rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-widest ${getOrderStatusBadgeClasses(adminStatusFilter)}`}>
+                                {getOrderStatusLabel(adminStatusFilter)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {adminStatusError && (
                         <div className="rounded-[1.5rem] border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-200 mb-6">
@@ -1368,35 +1475,35 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       )}
 
                       {isOrdersLoading ? (
-                        <div className="rounded-[2rem] border border-dashed border-white/10 bg-[#101010] p-8 text-center">
+                        <div className="rounded-[2rem] border border-dashed dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-8 text-center">
                           <div className="w-14 h-14 border-8 border-funko-blue border-t-transparent rounded-full animate-spin mx-auto mb-5" />
-                          <p className="text-white/65 text-lg font-medium">Carregando pedidos e imagens do painel de admin...</p>
+                          <p className="dark:text-white/65 text-black/65 text-lg font-medium">Carregando pedidos e imagens do painel de admin...</p>
                         </div>
                       ) : ordersError ? (
                         <div className="rounded-[2rem] border border-red-500/20 bg-red-500/10 p-6">
                           <p className="font-black text-red-200 mb-2">Nao foi possivel carregar o painel de admin.</p>
                           <p className="text-red-100/80 font-medium">{ordersError}</p>
                         </div>
-                      ) : orders.length > 0 ? (
+                      ) : orders.length > 0 && filteredAdminOrders.length > 0 ? (
                         <div className="space-y-6">
-                          {orders.map((order) => (
-                            <div key={order.id} className="rounded-[2rem] border border-white/10 bg-[#101010] p-5">
+                          {filteredAdminOrders.map((order) => (
+                            <div key={order.id} className="rounded-[2rem] border dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-5">
                               <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-5">
                                 <div className="flex items-start gap-4">
                                   {order.customerAvatarUrl ? (
-                                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-white/10">
+                                    <div className="w-14 h-14 rounded-2xl overflow-hidden border dark:border-white/10 border-black/10">
                                       <img src={order.customerAvatarUrl} alt={order.customerName || 'Cliente'} className="w-full h-full object-cover" />
                                     </div>
                                   ) : (
-                                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-lg font-black text-white/60">
+                                    <div className="w-14 h-14 rounded-2xl bg-white/5 border dark:border-white/10 border-black/10 flex items-center justify-center text-lg font-black dark:text-white/60 text-black/60">
                                       {(order.customerName || 'C').slice(0, 1).toUpperCase()}
                                     </div>
                                   )}
 
                                   <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Cliente</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-2">Cliente</p>
                                     <h4 className="text-2xl font-black">{order.customerName || 'Cliente sem nome'}</h4>
-                                    <p className="text-white/45 font-bold break-all">{order.customerEmail || order.userId}</p>
+                                    <p className="dark:text-white/45 text-black/45 font-bold break-all">{order.customerEmail || order.userId}</p>
                                   </div>
                                 </div>
 
@@ -1404,40 +1511,51 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                                   <span className="rounded-full border border-funko-blue/20 bg-funko-blue/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-funko-blue">
                                     {order.subjectType === 'person' ? 'Pessoa' : 'Pet'}
                                   </span>
-                                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/55">
+                                  <span className="rounded-full border dark:border-white/10 border-black/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest dark:text-white/55 text-black/55">
                                     {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                                   </span>
-                                  <span className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest ${getOrderStatusBadgeClasses(order.status)}`}>
-                                    {getOrderStatusLabel(order.status)}
-                                  </span>
+                                  <select
+                                    value={pendingStatusByOrderId[order.id] || order.status}
+                                    onChange={(event) => void handleAdminStatusChange(order, event.target.value as OrderStatus)}
+                                    disabled={updatingOrderId === order.id}
+                                    className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest focus:outline-none ${getOrderStatusBadgeClasses(
+                                      pendingStatusByOrderId[order.id] || order.status,
+                                    )} ${updatingOrderId === order.id ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}
+                                  >
+                                    {ORDER_STATUS_OPTIONS.map((option) => (
+                                      <option key={option.value} value={option.value}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                               </div>
 
                               <div className="grid md:grid-cols-2 gap-5">
-                                <div className="rounded-[1.75rem] border border-white/10 overflow-hidden bg-[#0B0B0B]">
-                                  <div className="px-4 py-3 border-b border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/45">
+                                <div className="rounded-[1.75rem] border dark:border-white/10 border-black/10 overflow-hidden dark:bg-[#0B0B0B] bg-gray-100">
+                                  <div className="px-4 py-3 border-b dark:border-white/10 border-black/10 bg-white/5 text-[10px] font-black uppercase tracking-widest dark:text-white/45 text-black/45">
                                     Previa gerada
                                   </div>
                                   <div className="aspect-[3/4]">
                                     {order.previewImageUrl ? (
-                                      <img src={order.previewImageUrl} alt={`Previa do pedido ${order.id}`} className="w-full h-full object-contain bg-[#0B0B0B]" />
+                                      <img src={order.previewImageUrl} alt={`Previa do pedido ${order.id}`} className="w-full h-full object-contain dark:bg-[#0B0B0B] bg-gray-100" />
                                     ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-white/25 font-black">
+                                      <div className="w-full h-full flex items-center justify-center dark:text-white/25 text-black/25 font-black">
                                         PREVIA INDISPONIVEL
                                       </div>
                                     )}
                                   </div>
                                 </div>
 
-                                <div className="rounded-[1.75rem] border border-white/10 overflow-hidden bg-[#0B0B0B]">
-                                  <div className="px-4 py-3 border-b border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/45">
+                                <div className="rounded-[1.75rem] border dark:border-white/10 border-black/10 overflow-hidden dark:bg-[#0B0B0B] bg-gray-100">
+                                  <div className="px-4 py-3 border-b dark:border-white/10 border-black/10 bg-white/5 text-[10px] font-black uppercase tracking-widest dark:text-white/45 text-black/45">
                                     Foto enviada pelo cliente
                                   </div>
                                   <div className="aspect-[3/4]">
                                     {order.referenceImageUrl ? (
-                                      <img src={order.referenceImageUrl} alt={`Imagem de referencia do pedido ${order.id}`} className="w-full h-full object-contain bg-[#0B0B0B]" />
+                                      <img src={order.referenceImageUrl} alt={`Imagem de referencia do pedido ${order.id}`} className="w-full h-full object-contain dark:bg-[#0B0B0B] bg-gray-100" />
                                     ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-white/25 font-black">
+                                      <div className="w-full h-full flex items-center justify-center dark:text-white/25 text-black/25 font-black">
                                         IMAGEM INDISPONIVEL
                                       </div>
                                     )}
@@ -1447,48 +1565,42 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
 
                               <div className="mt-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                                 <div>
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Estilo escolhido</p>
+                                  <p className="text-[10px] font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-2">Estilo escolhido</p>
                                   <p className="text-lg font-black">{order.styleName || 'Roupa Aleatoria'}</p>
                                 </div>
-                                <div className="sm:min-w-[300px]">
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Atualizar status</p>
-                                  <div className="flex flex-col sm:flex-row gap-3">
-                                    <select
-                                      value={adminStatusDrafts[order.id] || order.status}
-                                      onChange={(event) => handleAdminStatusDraftChange(order.id, event.target.value as OrderStatus)}
-                                      className="flex-1 rounded-[1rem] border border-white/10 bg-[#0B0B0B] px-4 py-3 text-sm font-black text-white focus:outline-none focus:border-funko-blue"
-                                      disabled={updatingOrderId === order.id}
-                                    >
-                                      {ORDER_STATUS_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleAdminStatusSave(order)}
-                                      disabled={updatingOrderId === order.id || (adminStatusDrafts[order.id] || order.status) === order.status}
-                                      className="rounded-[1rem] bg-funko-blue px-5 py-3 text-sm font-black text-white transition-all hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      {updatingOrderId === order.id ? 'SALVANDO...' : 'SALVAR STATUS'}
-                                    </button>
-                                  </div>
-                                </div>
                                 <div className="text-left sm:text-right">
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/35 mb-2">Valor do pedido</p>
+                                  <p className="text-[10px] font-black uppercase tracking-widest dark:text-white/35 text-black/35 mb-2">Valor do pedido</p>
                                   <p className="text-2xl font-black text-funko-green">R$ {order.totalAmount.toFixed(2).replace('.', ',')}</p>
                                 </div>
                               </div>
                             </div>
                           ))}
                         </div>
+                      ) : orders.length > 0 ? (
+                        <div className="rounded-[2rem] border border-dashed dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-8">
+                          <p className="dark:text-white/65 text-black/65 text-lg font-medium mb-4">
+                            Nenhum pedido encontrou correspondencia com os filtros atuais.
+                          </p>
+                          <p className="dark:text-white/35 text-black/35 font-bold mb-8">
+                            Tente buscar por outro nome, e-mail ou limpe o filtro de status para ver todos os pedidos.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdminSearchTerm('');
+                              setAdminStatusFilter('all');
+                            }}
+                            className="bg-funko-blue text-white px-8 py-4 rounded-[1.5rem] font-black hover:scale-[1.02] transition-transform shadow-[0_0_18px_rgba(0,174,239,0.22)]"
+                          >
+                            LIMPAR E MOSTRAR TODOS
+                          </button>
+                        </div>
                       ) : (
-                        <div className="rounded-[2rem] border border-dashed border-white/10 bg-[#101010] p-8">
-                          <p className="text-white/65 text-lg font-medium mb-4">
+                        <div className="rounded-[2rem] border border-dashed dark:border-white/10 border-black/10 dark:bg-[#101010] bg-white p-8">
+                          <p className="dark:text-white/65 text-black/65 text-lg font-medium mb-4">
                             Ainda nao existem pedidos para o painel de admin.
                           </p>
-                          <p className="text-white/35 font-bold">
+                          <p className="dark:text-white/35 text-black/35 font-bold">
                             Assim que os clientes enviarem pedidos, as fotos de referencia e as previas vao aparecer aqui.
                           </p>
                         </div>
@@ -1499,7 +1611,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               ) : (
                 <div className="pop-card p-16 text-center">
                   <p className="text-2xl font-black mb-4">Sua sessao terminou.</p>
-                  <p className="text-white/45 font-medium mb-8">Entre novamente para acessar sua conta.</p>
+                  <p className="dark:text-white/45 text-black/45 font-medium mb-8">Entre novamente para acessar sua conta.</p>
                   <button
                     type="button"
                     onClick={() => openAuthView('login')}
@@ -1526,30 +1638,30 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <Sparkles className="w-3 h-3" />
                     Sua historia em tres dimensoes
                   </div>
-                  <h1 className="text-6xl md:text-8xl font-display font-black tracking-tighter leading-[0.85] mb-8 text-white">
+                  <h1 className="text-6xl md:text-8xl font-display font-black tracking-tighter leading-[0.85] mb-8 dark:text-white text-gray-900">
                     TRANSFORME <br />
                     <span className="text-funko-blue drop-shadow-lg">SUA FOTO EM</span> <br />
                     MINIATURAS 3D!
                   </h1>
-                  <p className="text-white/60 text-xl max-w-xl mb-12 font-medium">
+                  <p className="dark:text-white/60 text-black/60 text-xl max-w-xl mb-12 font-medium">
                     Transformamos suas fotos favoritas em pecas 3D exclusivas. Pessoas, familias e pets moldados digitalmente e materializados para voce.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mb-12">
                     <div className="pop-card p-5">
                       <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-2">Produtos em destaque</p>
-                      <p className="text-white/65 font-bold">Kit Minha Arte e Mini Realismo como primeiras linhas da marca.</p>
+                      <p className="dark:text-white/65 text-black/65 font-bold">Kit Minha Arte e Mini Realismo como primeiras linhas da marca.</p>
                     </div>
                     <div className="pop-card p-5">
                       <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-2">Memoria afetiva</p>
-                      <p className="text-white/65 font-bold">Presenteie com uma lembranca tridimensional feita a partir de uma foto real.</p>
+                      <p className="dark:text-white/65 text-black/65 font-bold">Presenteie com uma lembranca tridimensional feita a partir de uma foto real.</p>
                     </div>
                     <div className="pop-card p-5">
                       <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-2">Pessoas, pets e familia</p>
-                      <p className="text-white/65 font-bold">Comece por um personagem e evolua para casal, familia e cenarios tematicos.</p>
+                      <p className="dark:text-white/65 text-black/65 font-bold">Comece por um personagem e evolua para casal, familia e cenarios tematicos.</p>
                     </div>
                     <div className="pop-card p-5">
                       <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-2">Processo autoral</p>
-                      <p className="text-white/65 font-bold">Modelagem digital, producao 3D e acabamento pensados para emocionar.</p>
+                      <p className="dark:text-white/65 text-black/65 font-bold">Modelagem digital, producao 3D e acabamento pensados para emocionar.</p>
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -1561,7 +1673,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     </button>
                     <button 
                       onClick={() => scrollTo(galleryRef)}
-                      className="w-full sm:w-auto bg-[#141414] border-2 border-white/5 px-12 py-6 rounded-[2rem] text-xl font-black hover:bg-white/5 transition-colors text-white/80"
+                      className="w-full sm:w-auto dark:bg-[#141414] bg-white border-2 dark:border-white/5 border-black/5 px-12 py-6 rounded-[2rem] text-xl font-black hover:bg-white/5 transition-colors dark:text-white/80 text-black/80"
                     >
                       CONHECER FORMATOS
                     </button>
@@ -1569,11 +1681,11 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 </div>
                 <div className="relative">
                   <div className="absolute -inset-10 bg-funko-blue/20 rounded-[3rem] blur-3xl -z-10 animate-pulse" />
-                  <div className="absolute top-4 -left-4 z-10 pop-card px-5 py-4 bg-[#0F1316]/90">
+                  <div className="absolute top-4 -left-4 z-10 pop-card px-5 py-4 dark:bg-[#0F1316]/90 bg-white/90">
                     <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-1">Linha inicial</p>
-                    <p className="text-2xl font-black text-white">R$ 149,90</p>
+                    <p className="text-2xl font-black dark:text-white text-gray-900">R$ 149,90</p>
                   </div>
-                  <div className="border border-white/10 rounded-[2rem] p-4 bg-[#141414]/50 backdrop-blur-md rotate-3 hover:rotate-0 transition-transform duration-700 shadow-2xl">
+                  <div className="border dark:border-white/10 border-black/10 rounded-[2rem] p-4 dark:bg-[#141414]/50 bg-white/50 backdrop-blur-md rotate-3 hover:rotate-0 transition-transform duration-700 shadow-2xl">
                     <img 
                       src={heroBonecoExample}
                       alt="Exemplo de miniatura 3D personalizada" 
@@ -1589,7 +1701,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               <div className="mt-16 text-left">
                 <div className="text-center mb-10">
                   <h2 className="text-4xl font-display font-black mb-3">Nossos produtos principais</h2>
-                  <p className="text-white/40 text-base font-bold uppercase tracking-widest">Duas formas de viver sua miniatura</p>
+                  <p className="dark:text-white/40 text-black/40 text-base font-bold uppercase tracking-widest">Duas formas de viver sua miniatura</p>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="pop-card p-10 border-funko-yellow/20">
@@ -1598,15 +1710,15 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     </div>
                     <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-3">Kit Minha Arte</p>
                     <h3 className="text-4xl font-black mb-4">Boneco caricato para pintar</h3>
-                    <p className="text-white/55 font-medium text-lg mb-8">
+                    <p className="dark:text-white/55 text-black/55 font-medium text-lg mb-8">
                       Uma experiencia de criatividade, terapia e lazer. Voce recebe a miniatura personalizada pronta para ganhar vida com suas proprias cores.
                     </p>
-                    <ul className="space-y-4 text-white/70 font-bold mb-8">
+                    <ul className="space-y-4 dark:text-white/70 text-black/70 font-bold mb-8">
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Boneco personalizado em base neutra</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Kit de tintas selecionadas</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Pinceis para pintar em casa</li>
                     </ul>
-                    <p className="text-white/35 font-bold">Ideal para relaxar, presentear e criar uma atividade inesquecivel com as criancas.</p>
+                    <p className="dark:text-white/35 text-black/35 font-bold">Ideal para relaxar, presentear e criar uma atividade inesquecivel com as criancas.</p>
                   </div>
                   <div className="pop-card p-10 border-funko-blue/20 bg-funko-blue/5">
                     <div className="w-16 h-16 rounded-3xl bg-funko-blue/10 border border-funko-blue/20 text-funko-blue flex items-center justify-center mb-8">
@@ -1614,15 +1726,15 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     </div>
                     <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-3">Mini Realismo</p>
                     <h3 className="text-4xl font-black mb-4">Peca colorida e pronta</h3>
-                    <p className="text-white/55 font-medium text-lg mb-8">
+                    <p className="dark:text-white/55 text-black/55 font-medium text-lg mb-8">
                       A linha para decoracao e memoria afetiva. Miniaturas prontas para encantar em casa, no escritorio ou como presente premium.
                     </p>
-                    <ul className="space-y-4 text-white/70 font-bold mb-8">
+                    <ul className="space-y-4 dark:text-white/70 text-black/70 font-bold mb-8">
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Formato de ima de geladeira</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Opcao de quadro 3D decorativo</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Cenario tematico como adicional futuro</li>
                     </ul>
-                    <p className="text-white/35 font-bold">Perfeito para lembrancas afetivas e composicoes com profundidade e personalidade.</p>
+                    <p className="dark:text-white/35 text-black/35 font-bold">Perfeito para lembrancas afetivas e composicoes com profundidade e personalidade.</p>
                   </div>
                 </div>
               </div>
@@ -1633,11 +1745,11 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-100px" }}
-                className="mt-40 pt-20 border-t border-white/5"
+                className="mt-40 pt-20 border-t dark:border-white/5 border-black/5"
               >
                 <div className="text-center mb-20">
                   <h2 className="text-5xl font-display font-black mb-4">Como funciona</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Foto, modelagem digital, producao e envio</p>
+                  <p className="dark:text-white/40 text-black/40 text-lg font-bold uppercase tracking-widest">Foto, modelagem digital, producao e envio</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
                   <div className="pop-card p-12 flex flex-col items-center text-center">
@@ -1645,7 +1757,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       <Camera className="w-10 h-10" />
                     </div>
                     <h3 className="text-2xl font-black mb-4">1. Envie sua foto</h3>
-                    <p className="text-white/60 font-medium leading-relaxed">
+                    <p className="dark:text-white/60 text-black/60 font-medium leading-relaxed">
                       Carregue a melhor foto da pessoa, familia ou pet que voce quer transformar em miniatura.
                     </p>
                   </div>
@@ -1654,7 +1766,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       <Sparkles className="w-10 h-10" />
                     </div>
                     <h3 className="text-2xl font-black mb-4">2. Modelagem digital</h3>
-                    <p className="text-white/60 font-medium leading-relaxed">
+                    <p className="dark:text-white/60 text-black/60 font-medium leading-relaxed">
                       Nossa equipe e a IA constroem a base 3D respeitando tracos, proporcoes e estilo do produto escolhido.
                     </p>
                   </div>
@@ -1663,7 +1775,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       <Box className="w-10 h-10" />
                     </div>
                     <h3 className="text-2xl font-black mb-4">3. Producao e envio</h3>
-                    <p className="text-white/60 font-medium leading-relaxed">
+                    <p className="dark:text-white/60 text-black/60 font-medium leading-relaxed">
                       Imprimimos, finalizamos e enviamos sua peca para decorar, presentear ou marcar um momento especial.
                     </p>
                   </div>
@@ -1676,16 +1788,16 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-100px" }}
-                className="mt-40 pt-20 border-t border-white/5"
+                className="mt-40 pt-20 border-t dark:border-white/5 border-black/5"
               >
                 <div className="text-center mb-20">
                   <h2 className="text-5xl font-display font-black mb-4">Ideias para inspirar seu pedido</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Hoje com pessoa e pet. Casal e familia chegam em breve.</p>
+                  <p className="dark:text-white/40 text-black/40 text-lg font-bold uppercase tracking-widest">Hoje com pessoa e pet. Casal e familia chegam em breve.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {SHOWCASE.map((item) => (
                   <div key={item.id} className="group pop-card overflow-hidden cursor-pointer">
-                    <div className="aspect-square overflow-hidden bg-[#1A1A1A]">
+                    <div className="aspect-square overflow-hidden dark:bg-[#1A1A1A] bg-gray-200">
                       <img 
                         src={item.imageUrl} 
                         alt={item.title} 
@@ -1693,11 +1805,11 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                         loading="lazy"
                       />
                     </div>
-                    <div className="p-8 text-left border-t border-white/5 bg-[#141414]">
+                    <div className="p-8 text-left border-t dark:border-white/5 border-black/5 dark:bg-[#141414] bg-white">
                       <div className="text-xs font-black uppercase tracking-widest text-funko-blue mb-2">
                         {item.type === 'person' ? 'Pessoa' : 'Pet'}
                       </div>
-                      <h3 className="text-xl font-black text-white/90">{item.title}</h3>
+                      <h3 className="text-xl font-black dark:text-white/90 text-black/90">{item.title}</h3>
                     </div>
                   </div>
                 ))}
@@ -1708,7 +1820,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-100px" }}
-                className="mt-40 pt-20 border-t border-white/5"
+                className="mt-40 pt-20 border-t dark:border-white/5 border-black/5"
               >
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-10 items-stretch">
                   <div className="pop-card p-12 text-left border-funko-yellow/20">
@@ -1717,21 +1829,21 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                       Destaque pet
                     </div>
                     <h2 className="text-5xl font-display font-black mb-6">Eternize seu melhor amigo</h2>
-                    <p className="text-white/55 text-xl font-medium mb-10">
+                    <p className="dark:text-white/55 text-black/55 text-xl font-medium mb-10">
                       O mercado pet e um dos mais emocionais e fortes para esse tipo de produto. Uma miniatura bem feita do seu companheiro vira lembranca, presente e decoracao ao mesmo tempo.
                     </p>
                     <div className="space-y-5">
                       <div className="pop-card p-5">
                         <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-2">Alta conversao</p>
-                        <p className="text-white/65 font-bold">Pets geram apelo imediato porque a compra mistura afeto, saudade e presente.</p>
+                        <p className="dark:text-white/65 text-black/65 font-bold">Pets geram apelo imediato porque a compra mistura afeto, saudade e presente.</p>
                       </div>
                       <div className="pop-card p-5">
                         <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-2">Linha propria</p>
-                        <p className="text-white/65 font-bold">Vale ter uma secao exclusiva para pet com exemplos, depoimentos e chamadas afetivas.</p>
+                        <p className="dark:text-white/65 text-black/65 font-bold">Vale ter uma secao exclusiva para pet com exemplos, depoimentos e chamadas afetivas.</p>
                       </div>
                       <div className="pop-card p-5">
                         <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-2">Frase forte</p>
-                        <p className="text-white/65 font-bold">Use algo como: "Eternize seu melhor amigo em uma miniatura 3D cheia de personalidade."</p>
+                        <p className="dark:text-white/65 text-black/65 font-bold">Use algo como: "Eternize seu melhor amigo em uma miniatura 3D cheia de personalidade."</p>
                       </div>
                     </div>
                   </div>
@@ -1740,18 +1852,18 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <div className="pop-card p-10 text-left">
                       <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-3">Upgrade de cenario</p>
                       <h3 className="text-3xl font-black mb-4">Venda um mundo junto da miniatura</h3>
-                      <p className="text-white/55 font-medium mb-6">
+                      <p className="dark:text-white/55 text-black/55 font-medium mb-6">
                         No Mini Realismo, o cenario tematico pode virar um adicional poderoso no carrinho: praia, castelo, escritorio, quarto infantil ou viagem inesquecivel.
                       </p>
-                      <p className="text-white/35 font-bold">Isso aumenta ticket medio e torna a lembranca muito mais exclusiva.</p>
+                      <p className="dark:text-white/35 text-black/35 font-bold">Isso aumenta ticket medio e torna a lembranca muito mais exclusiva.</p>
                     </div>
                     <div className="pop-card p-10 text-left">
                       <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-3">Videos de processo</p>
                       <h3 className="text-3xl font-black mb-4">Mostre a modelagem em timelapse</h3>
-                      <p className="text-white/55 font-medium mb-6">
+                      <p className="dark:text-white/55 text-black/55 font-medium mb-6">
                         Como o produto nasce de uma modelagem 3D, mostrar o processo gera autoridade e prova que a peca nao e um item generico de catalogo.
                       </p>
-                      <p className="text-white/35 font-bold">Video curto de foto para boneco aumenta confianca e valor percebido.</p>
+                      <p className="dark:text-white/35 text-black/35 font-bold">Video curto de foto para boneco aumenta confianca e valor percebido.</p>
                     </div>
                   </div>
                 </div>
@@ -1761,27 +1873,27 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-100px" }}
-                className="mt-40 pt-20 border-t border-white/5"
+                className="mt-40 pt-20 border-t dark:border-white/5 border-black/5"
               >
                 <div className="text-center mb-20">
                   <h2 className="text-5xl font-display font-black mb-4">Solucoes para eventos</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Do presente individual ao encantamento de convidados</p>
+                  <p className="dark:text-white/40 text-black/40 text-lg font-bold uppercase tracking-widest">Do presente individual ao encantamento de convidados</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   <div className="pop-card p-10 text-left">
                     <p className="text-xs font-black uppercase tracking-widest text-funko-blue mb-3">Casamentos</p>
                     <h3 className="text-3xl font-black mb-4">Topo de bolo e lembrancinhas</h3>
-                    <p className="text-white/55 font-medium">Noivinhos personalizados, mini-imas e pecas especiais para marcar a data com personalidade.</p>
+                    <p className="dark:text-white/55 text-black/55 font-medium">Noivinhos personalizados, mini-imas e pecas especiais para marcar a data com personalidade.</p>
                   </div>
                   <div className="pop-card p-10 text-left">
                     <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-3">Nascimentos</p>
                     <h3 className="text-3xl font-black mb-4">Quadros 3D afetivos</h3>
-                    <p className="text-white/55 font-medium">Miniaturas decorativas com o bebe e os dados do nascimento para eternizar o momento.</p>
+                    <p className="dark:text-white/55 text-black/55 font-medium">Miniaturas decorativas com o bebe e os dados do nascimento para eternizar o momento.</p>
                   </div>
                   <div className="pop-card p-10 text-left">
                     <p className="text-xs font-black uppercase tracking-widest text-funko-green mb-3">Corporativo</p>
                     <h3 className="text-3xl font-black mb-4">Brindes memoraveis</h3>
-                    <p className="text-white/55 font-medium">Caricaturas e miniaturas para premiacao, reconhecimento e acoes especiais com colaboradores.</p>
+                    <p className="dark:text-white/55 text-black/55 font-medium">Caricaturas e miniaturas para premiacao, reconhecimento e acoes especiais com colaboradores.</p>
                   </div>
                 </div>
               </motion.div>
@@ -1792,17 +1904,17 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-100px" }}
-                className="mt-40 pt-20 border-t border-white/5"
+                className="mt-40 pt-20 border-t dark:border-white/5 border-black/5"
               >
                 <div className="text-center mb-20">
                   <h2 className="text-5xl font-display font-black mb-4">Escolha o produto ideal</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">Criatividade para pintar ou miniatura pronta para decorar</p>
+                  <p className="dark:text-white/40 text-black/40 text-lg font-bold uppercase tracking-widest">Criatividade para pintar ou miniatura pronta para decorar</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                   <div className="pop-card p-12">
                     <h3 className="text-3xl font-black mb-2">Kit Minha Arte</h3>
-                    <div className="text-5xl font-black text-white mb-8">R$ 149,90</div>
-                    <ul className="space-y-4 mb-12 text-white/60 font-bold">
+                    <div className="text-5xl font-black dark:text-white text-gray-900 mb-8">R$ 149,90</div>
+                    <ul className="space-y-4 mb-12 dark:text-white/60 text-black/60 font-bold">
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Boneco caricato em base neutra</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Kit de tintas selecionadas</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Pinceis para a experiencia em casa</li>
@@ -1813,7 +1925,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <div className="absolute top-8 right-8 bg-funko-blue text-white text-xs font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-[0_0_15px_rgba(0,174,239,0.5)]">POPULAR</div>
                     <h3 className="text-3xl font-black mb-2">Mini Realismo</h3>
                     <div className="text-5xl font-black text-funko-blue mb-8 drop-shadow-md">R$ 179,80</div>
-                    <ul className="space-y-4 mb-12 text-white/60 font-bold">
+                    <ul className="space-y-4 mb-12 dark:text-white/60 text-black/60 font-bold">
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Miniatura colorida e pronta</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Formatos de ima e quadro 3D</li>
                       <li className="flex items-center gap-3"><Check className="w-5 h-5 text-funko-green" /> Cenario tematico como adicional futuro</li>
@@ -1823,7 +1935,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 </div>
                 <div className="pop-card p-8 max-w-4xl mx-auto mt-8 text-left">
                   <p className="text-xs font-black uppercase tracking-widest text-funko-yellow mb-3">Em breve</p>
-                  <p className="text-white/70 font-bold">Vamos liberar modulos para casal, familia, cenarios tematicos e composicoes com mais de um personagem no mesmo pedido.</p>
+                  <p className="dark:text-white/70 text-black/70 font-bold">Vamos liberar modulos para casal, familia, cenarios tematicos e composicoes com mais de um personagem no mesmo pedido.</p>
                 </div>
               </motion.div>
 
@@ -1832,28 +1944,28 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-100px" }}
-                className="mt-40 pt-20 border-t border-white/5"
+                className="mt-40 pt-20 border-t dark:border-white/5 border-black/5"
               >
                 <div className="text-center mb-20">
                   <h2 className="text-5xl font-display font-black mb-4">Duvidas frequentes</h2>
-                  <p className="text-white/40 text-lg font-bold uppercase tracking-widest">As respostas que ajudam o cliente a entender o produto e comprar com seguranca</p>
+                  <p className="dark:text-white/40 text-black/40 text-lg font-bold uppercase tracking-widest">As respostas que ajudam o cliente a entender o produto e comprar com seguranca</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="pop-card p-10 text-left">
                     <h3 className="text-2xl font-black mb-4">Vocês fazem apenas ima de geladeira?</h3>
-                    <p className="text-white/55 font-medium leading-relaxed">Nao. O Mini Realismo abre caminho para formatos como ima de geladeira, quadro 3D e, futuramente, cenarios tematicos.</p>
+                    <p className="dark:text-white/55 text-black/55 font-medium leading-relaxed">Nao. O Mini Realismo abre caminho para formatos como ima de geladeira, quadro 3D e, futuramente, cenarios tematicos.</p>
                   </div>
                   <div className="pop-card p-10 text-left">
                     <h3 className="text-2xl font-black mb-4">O Kit Minha Arte vem pronto?</h3>
-                    <p className="text-white/55 font-medium leading-relaxed">Ele vem com a miniatura personalizada em base neutra, tintas e pinceis para a experiencia de pintura em casa.</p>
+                    <p className="dark:text-white/55 text-black/55 font-medium leading-relaxed">Ele vem com a miniatura personalizada em base neutra, tintas e pinceis para a experiencia de pintura em casa.</p>
                   </div>
                   <div className="pop-card p-10 text-left">
                     <h3 className="text-2xl font-black mb-4">Posso fazer de pet?</h3>
-                    <p className="text-white/55 font-medium leading-relaxed">Sim. Pets sao uma das linhas mais fortes da marca e merecem destaque proprio pela carga emocional e potencial de conversao.</p>
+                    <p className="dark:text-white/55 text-black/55 font-medium leading-relaxed">Sim. Pets sao uma das linhas mais fortes da marca e merecem destaque proprio pela carga emocional e potencial de conversao.</p>
                   </div>
                   <div className="pop-card p-10 text-left">
                     <h3 className="text-2xl font-black mb-4">Vocês atendem eventos e empresas?</h3>
-                    <p className="text-white/55 font-medium leading-relaxed">Sim. A estrutura da marca ja contempla casamentos, nascimentos e brindes corporativos como frente B2B e social.</p>
+                    <p className="dark:text-white/55 text-black/55 font-medium leading-relaxed">Sim. A estrutura da marca ja contempla casamentos, nascimentos e brindes corporativos como frente B2B e social.</p>
                   </div>
                 </div>
               </motion.div>
@@ -1868,22 +1980,22 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               exit={{ opacity: 0, x: -20 }}
               className="max-w-3xl mx-auto"
             >
-              <button onClick={() => setStep('welcome')} className="flex items-center gap-2 text-white/40 hover:text-white mb-12 font-black transition-colors">
+              <button onClick={() => setStep('welcome')} className="flex items-center gap-2 dark:text-white/40 text-black/40 hover:dark:text-white hover:text-black mb-12 font-black transition-colors">
                 <ChevronLeft className="w-5 h-5" /> VOLTAR
               </button>
               <h2 className="text-5xl font-display font-black tracking-tight mb-4">Quem vamos transformar em 3D?</h2>
-              <p className="text-white/40 text-xl font-medium mb-12">Escolha quem vai virar uma peca personalizada da Minha Fabrica3D.</p>
+              <p className="dark:text-white/40 text-black/40 text-xl font-medium mb-12">Escolha quem vai virar uma peca personalizada da Minha Fabrica3D.</p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <button 
                   onClick={() => { setSubjectType('person'); setStep('upload'); }}
                   className="group pop-card p-12 text-left hover:border-funko-blue"
                 >
-                  <div className="w-20 h-20 bg-funko-blue/10 rounded-3xl flex items-center justify-center mb-8 border border-funko-blue/20 group-hover:bg-funko-blue group-hover:text-white transition-all text-funko-blue">
+                  <div className="w-20 h-20 bg-funko-blue/10 rounded-3xl flex items-center justify-center mb-8 border border-funko-blue/20 group-hover:bg-funko-blue group-hover:dark:text-white hover:text-black transition-all text-funko-blue">
                     <User className="w-10 h-10" />
                   </div>
                   <h3 className="text-3xl font-black mb-3">Pessoa</h3>
-                  <p className="text-white/40 font-bold">Seu rosto ou de alguem especial em uma miniatura 3D personalizada.</p>
+                  <p className="dark:text-white/40 text-black/40 font-bold">Seu rosto ou de alguem especial em uma miniatura 3D personalizada.</p>
                 </button>
                 <button 
                   onClick={() => { setSubjectType('pet'); setStep('upload'); }}
@@ -1893,7 +2005,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     <Dog className="w-10 h-10" />
                   </div>
                   <h3 className="text-3xl font-black mb-3">Pet</h3>
-                  <p className="text-white/40 font-bold">Seu pet transformado em uma miniatura 3D cheia de personalidade.</p>
+                  <p className="dark:text-white/40 text-black/40 font-bold">Seu pet transformado em uma miniatura 3D cheia de personalidade.</p>
                 </button>
               </div>
             </motion.div>
@@ -1907,18 +2019,18 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               exit={{ opacity: 0, x: -20 }}
               className="max-w-3xl mx-auto text-center"
             >
-              <button onClick={() => setStep('type')} className="flex items-center gap-2 text-white/40 hover:text-white mb-12 font-black transition-colors mx-auto">
+              <button onClick={() => setStep('type')} className="flex items-center gap-2 dark:text-white/40 text-black/40 hover:dark:text-white hover:text-black mb-12 font-black transition-colors mx-auto">
                 <ChevronLeft className="w-5 h-5" /> VOLTAR
               </button>
               <h2 className="text-5xl font-display font-black tracking-tight mb-4">Envie sua foto de referencia</h2>
-              <p className="text-white/40 text-xl font-medium mb-12">
+              <p className="dark:text-white/40 text-black/40 text-xl font-medium mb-12">
                 Use uma foto bem iluminada para o Gemini entender seu rosto, seu pet e a base da sua miniatura.
               </p>
 
               <div 
                 onClick={() => !isUploading && fileInputRef.current?.click()}
                 className={`pop-card border-4 border-dashed rounded-[3rem] p-24 transition-all cursor-[pointer] relative ${
-                  isUploading ? 'border-funko-blue cyber-scan bg-funko-blue/5' : 'border-white/10 hover:border-funko-blue/50'
+                  isUploading ? 'border-funko-blue cyber-scan bg-funko-blue/5' : 'dark:border-white/10 border-black/10 hover:border-funko-blue/50'
                 }`}
               >
                 <input 
@@ -1936,11 +2048,11 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   </div>
                 ) : (
                   <div className="flex flex-col items-center relative z-20">
-                    <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-8 border border-white/10">
-                      <Camera className="w-12 h-12 text-white/50" />
+                    <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-8 border dark:border-white/10 border-black/10">
+                      <Camera className="w-12 h-12 dark:text-white/50 text-black/50" />
                     </div>
                     <p className="text-3xl font-black mb-4">Clique para enviar</p>
-                    <p className="text-white/40 font-bold">ou arraste a foto aqui</p>
+                    <p className="dark:text-white/40 text-black/40 font-bold">ou arraste a foto aqui</p>
                   </div>
                 )}
               </div>
@@ -1957,7 +2069,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-8">
                 <div>
                   <h2 className="text-5xl font-display font-black tracking-tight mb-4">Escolha o estilo da sua miniatura</h2>
-                  <p className="text-white/40 text-xl font-medium">Como o personagem da sua peca 3D deve se vestir?</p>
+                  <p className="dark:text-white/40 text-black/40 text-xl font-medium">Como o personagem da sua peca 3D deve se vestir?</p>
                 </div>
                 <div className="flex items-center gap-6 pop-card p-4">
                   <div className="w-20 h-20 rounded-2xl border-4 border-funko-blue overflow-hidden shadow-[0_0_15px_rgba(0,174,239,0.3)]">
@@ -1978,11 +2090,11 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   className={`group pop-card p-10 text-left flex flex-col justify-between hover:border-funko-blue/50`}
                 >
                   <div>
-                    <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-funko-blue group-hover:text-white transition-all">
+                    <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-funko-blue group-hover:dark:text-white hover:text-black transition-all">
                       <Shirt className="w-8 h-8" />
                     </div>
                     <h3 className="text-2xl font-black mb-3">Estilo Aleatório</h3>
-                    <p className="text-white/40 font-bold">Nós escolhemos um visual!</p>
+                    <p className="dark:text-white/40 text-black/40 font-bold">Nós escolhemos um visual!</p>
                   </div>
                 </button>
 
@@ -1996,15 +2108,15 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                     }}
                     className={`group pop-card overflow-hidden text-left relative hover:border-funko-blue/50`}
                   >
-                    <div className="aspect-square relative overflow-hidden bg-[#0A0A0A]">
+                    <div className="aspect-square relative overflow-hidden dark:bg-[#0A0A0A] bg-gray-100">
                       <img src={style.imageUrl} alt={style.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" loading="lazy" />
-                      <div className="absolute top-4 right-4 bg-[#0A0A0A]/80 backdrop-blur-md px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/10 text-white">
+                      <div className="absolute top-4 right-4 dark:bg-[#0A0A0A]/80 bg-gray-100/80 backdrop-blur-md px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border dark:border-white/10 border-black/10 text-white">
                         {style.category}
                       </div>
                     </div>
-                    <div className="p-8 border-t border-white/5 bg-[#141414]">
+                    <div className="p-8 border-t dark:border-white/5 border-black/5 dark:bg-[#141414] bg-white">
                       <h3 className="text-xl font-black mb-2">{style.name}</h3>
-                      <p className="text-white/40 font-bold text-sm leading-tight">{style.description}</p>
+                      <p className="dark:text-white/40 text-black/40 font-bold text-sm leading-tight">{style.description}</p>
                     </div>
                   </button>
                 ))}
@@ -2024,7 +2136,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 <Wand2 className="w-12 h-12 text-funko-blue" />
                 Previa da sua miniatura
               </h2>
-              <p className="text-white/40 text-xl font-medium mb-12">
+              <p className="dark:text-white/40 text-black/40 text-xl font-medium mb-12">
                 O Gemini esta analisando seus tracos e modelando a previa da sua peca...
               </p>
 
@@ -2037,7 +2149,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 ) : (
                   <div className="flex flex-col items-center">
                     <h3 className="text-3xl font-black mb-8 text-funko-green">Pronto! Veja como sua miniatura pode ficar:</h3>
-                    <div className="aspect-[3/4] w-full max-w-sm rounded-[2rem] overflow-hidden border-4 border-white/20 shadow-2xl relative bg-[#D8C7AF]">
+                    <div className="aspect-[3/4] w-full max-w-sm rounded-[2rem] overflow-hidden border-4 dark:border-white/20 border-black/20 shadow-2xl relative bg-[#D8C7AF]">
                       <img src={geminiPreviewData} alt="Preview do Gemini" className="w-full h-full object-contain" />
                       <div className="absolute top-4 left-4 bg-funko-blue/90 backdrop-blur text-white text-xs font-black px-4 py-2 rounded-full uppercase">
                         AI GENERATED
@@ -2075,8 +2187,8 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
               
               <div className="pop-card overflow-hidden border-funko-blue/30 shadow-[0_10px_40px_rgba(0,174,239,0.1)]">
                 <div className="grid grid-cols-1 md:grid-cols-2">
-                  <div className="p-12 border-b md:border-b-0 md:border-r border-white/5 bg-[#1A1A1A]">
-                    <div className="aspect-[3/4] rounded-[2rem] overflow-hidden border-4 border-white/10 shadow-2xl mb-10 relative bg-[#D8C7AF]">
+                  <div className="p-12 border-b md:border-b-0 md:border-r dark:border-white/5 border-black/5 dark:bg-[#1A1A1A] bg-gray-100">
+                    <div className="aspect-[3/4] rounded-[2rem] overflow-hidden border-4 dark:border-white/10 border-black/10 shadow-2xl mb-10 relative bg-[#D8C7AF]">
                        {/* Mostrar o Preview do Gemini se existir, ou a foto original */}
                       <img src={geminiPreviewData || uploadedPhoto!} alt="Referência" className="w-full h-full object-contain opacity-90 hover:opacity-100 transition-opacity" />
                     </div>
@@ -2085,7 +2197,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                         <Check className="w-8 h-8" />
                       </div>
                       <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-white/40">Status do Envio</p>
+                        <p className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40">Status do Envio</p>
                         <p className="text-xl font-black">Pronto para producao</p>
                       </div>
                     </div>
@@ -2094,32 +2206,32 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   <div className="p-12 flex flex-col justify-between">
                     <div>
                       <div className="mb-12">
-                        <p className="text-xs font-black uppercase tracking-widest text-white/40 mb-4">Estilo Escolhido</p>
+                        <p className="text-xs font-black uppercase tracking-widest dark:text-white/40 text-black/40 mb-4">Estilo Escolhido</p>
                         <div className="flex items-center gap-6">
-                          <div className="w-24 h-24 bg-[#0A0A0A] rounded-3xl flex items-center justify-center border-2 border-white/5 shadow-lg overflow-hidden">
-                            {selectedStyle ? <img src={selectedStyle.imageUrl} className="w-full h-full object-cover opacity-90" /> : <Shirt className="w-10 h-10 text-white/20" />}
+                          <div className="w-24 h-24 dark:bg-[#0A0A0A] bg-gray-100 rounded-3xl flex items-center justify-center border-2 dark:border-white/5 border-black/5 shadow-lg overflow-hidden">
+                            {selectedStyle ? <img src={selectedStyle.imageUrl} className="w-full h-full object-cover opacity-90" /> : <Shirt className="w-10 h-10 dark:text-white/20 text-black/20" />}
                           </div>
                           <div>
                             <h3 className="text-3xl font-black">{selectedStyle?.name || 'Roupa Aleatória'}</h3>
-                            <p className="text-white/40 font-bold text-lg">{selectedStyle?.category || 'Surpresa'}</p>
+                            <p className="dark:text-white/40 text-black/40 font-bold text-lg">{selectedStyle?.category || 'Surpresa'}</p>
                           </div>
                         </div>
                       </div>
 
                       <div className="space-y-6 mb-12">
-                        <div className="flex justify-between text-white/60 font-bold text-lg">
+                        <div className="flex justify-between dark:text-white/60 text-black/60 font-bold text-lg">
                           <span>Peca 3D personalizada</span>
                           <span>R$ 149,90</span>
                         </div>
-                        <div className="flex justify-between text-white/60 font-bold text-lg">
+                        <div className="flex justify-between dark:text-white/60 text-black/60 font-bold text-lg">
                           <span>Estilo Premium</span>
                           <span>{selectedStyle ? 'R$ 29,90' : 'Grátis'}</span>
                         </div>
-                        <div className="flex justify-between text-white/60 font-bold text-lg">
+                        <div className="flex justify-between dark:text-white/60 text-black/60 font-bold text-lg">
                           <span>Frete</span>
                           <span className="text-funko-green drop-shadow-[0_0_5px_rgba(76,203,40,0.5)]">Grátis</span>
                         </div>
-                        <div className="pt-8 border-t-2 border-dashed border-white/10 flex justify-between text-4xl font-display font-black">
+                        <div className="pt-8 border-t-2 border-dashed dark:border-white/10 border-black/10 flex justify-between text-4xl font-display font-black">
                           <span>TOTAL</span>
                           <span className="text-funko-blue">R$ {selectedStyle ? '179,80' : '149,90'}</span>
                         </div>
@@ -2168,7 +2280,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 <Check className="w-16 h-16 text-funko-green drop-shadow-lg" />
               </div>
               <h2 className="text-6xl font-display font-black tracking-tight mb-8">Pedido Recebido!</h2>
-              <p className="text-white/60 text-2xl font-medium mb-16">
+              <p className="dark:text-white/60 text-black/60 text-2xl font-medium mb-16">
                 Seu pedido e as imagens ficaram salvos na sua conta. Agora nossa equipe pode seguir com a sua miniatura.
               </p>
               <div className="pop-card p-12 text-left mb-16 border-funko-green/30">
@@ -2178,7 +2290,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                   </div>
                   <h4 className="text-2xl font-black">Próximos Passos</h4>
                 </div>
-                <ul className="space-y-6 text-lg font-bold text-white/60">
+                <ul className="space-y-6 text-lg font-bold dark:text-white/60 text-black/60">
                   <li className="flex gap-4">
                     <span className="text-funko-blue font-black">01.</span>
                     Modelagem 3D baseada na prévia AI (24-48h).
@@ -2218,7 +2330,7 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
       </a>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-20 mt-40 bg-[#141414]">
+      <footer className="border-t dark:border-white/5 border-black/5 py-20 mt-40 dark:bg-[#141414] bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
             <div className="col-span-1 md:col-span-2">
@@ -2228,39 +2340,39 @@ Do not add packaging, accessories, props, extra text beyond a clearly visible ta
                 </div>
                 <span className="font-display font-black text-3xl tracking-tighter text-funko-blue drop-shadow-md">MINHA FABRICA3D</span>
               </div>
-              <p className="text-white/40 font-bold max-w-sm">
+              <p className="dark:text-white/40 text-black/40 font-bold max-w-sm">
                 Transformamos fotos em miniaturas 3D personalizadas para presente, decoracao, memoria afetiva e eventos especiais.
               </p>
             </div>
             <div>
-              <h4 className="font-black mb-6 uppercase tracking-widest text-xs text-white/40">Links Úteis</h4>
-              <ul className="space-y-4 font-bold text-white/60">
+              <h4 className="font-black mb-6 uppercase tracking-widest text-xs dark:text-white/40 text-black/40">Links Úteis</h4>
+              <ul className="space-y-4 font-bold dark:text-white/60 text-black/60">
                 <li><button onClick={() => scrollTo(howItWorksRef)} className="hover:text-funko-blue transition-colors">Como Funciona</button></li>
                 <li><button onClick={() => scrollTo(galleryRef)} className="hover:text-funko-blue transition-colors">Galeria</button></li>
                 <li><button onClick={() => scrollTo(pricingRef)} className="hover:text-funko-blue transition-colors">Preços</button></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-black mb-6 uppercase tracking-widest text-xs text-white/40">Garantias</h4>
-              <ul className="space-y-4 font-bold text-white/60">
+              <h4 className="font-black mb-6 uppercase tracking-widest text-xs dark:text-white/40 text-black/40">Garantias</h4>
+              <ul className="space-y-4 font-bold dark:text-white/60 text-black/60">
                 <li className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-funko-green" /> Qualidade Premium</li>
                 <li className="flex items-center gap-2"><Truck className="w-4 h-4 text-funko-blue" /> Envio Seguro</li>
                 <li className="flex items-center gap-2"><Clock className="w-4 h-4 text-funko-yellow" /> Entrega no Prazo</li>
               </ul>
             </div>
           </div>
-          <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="text-sm text-white/20 font-black tracking-widest uppercase text-center md:text-left">
+          <div className="pt-12 border-t dark:border-white/5 border-black/5 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="text-sm dark:text-white/20 text-black/20 font-black tracking-widest uppercase text-center md:text-left">
               &copy; 2026 MINHA FABRICA3D. TODOS OS DIREITOS RESERVADOS.
             </div>
             <div className="flex items-center gap-6">
-              <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-white/40 hover:text-funko-blue transition-colors cursor-pointer">
+              <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center dark:text-white/40 text-black/40 hover:text-funko-blue transition-colors cursor-pointer">
                 <span className="font-black text-xs">IG</span>
               </div>
-              <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-white/40 hover:text-funko-blue transition-colors cursor-pointer">
+              <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center dark:text-white/40 text-black/40 hover:text-funko-blue transition-colors cursor-pointer">
                 <span className="font-black text-xs">FB</span>
               </div>
-              <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-white/40 hover:text-funko-blue transition-colors cursor-pointer">
+              <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center dark:text-white/40 text-black/40 hover:text-funko-blue transition-colors cursor-pointer">
                 <span className="font-black text-xs">TT</span>
               </div>
             </div>

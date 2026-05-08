@@ -22,10 +22,41 @@ interface ProfileRow {
 }
 
 const SESSION_TIMEOUT_MS = 3500;
-const PROFILE_TIMEOUT_MS = 3500;
+const PROFILE_TIMEOUT_MS = 8000;
+const PROFILE_CACHE_KEY = 'minha_fabrica3d_auth_profile_cache';
+
+type CachedProfileMap = Record<string, AuthUser>;
+
+function readCachedProfiles(): CachedProfileMap {
+  try {
+    const rawValue = window.localStorage.getItem(PROFILE_CACHE_KEY);
+
+    if (!rawValue) {
+      return {};
+    }
+
+    return JSON.parse(rawValue) as CachedProfileMap;
+  } catch {
+    return {};
+  }
+}
+
+function getCachedProfile(userId: string): AuthUser | null {
+  return readCachedProfiles()[userId] || null;
+}
+
+function saveCachedProfile(profile: AuthUser) {
+  try {
+    const cachedProfiles = readCachedProfiles();
+    cachedProfiles[profile.id] = profile;
+    window.localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cachedProfiles));
+  } catch {}
+}
 
 function buildFallbackUser(user: User): AuthUser {
+  const cachedProfile = getCachedProfile(user.id);
   const fallbackName =
+    cachedProfile?.name ||
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
     user.email?.split('@')[0] ||
@@ -34,11 +65,11 @@ function buildFallbackUser(user: User): AuthUser {
   return {
     id: user.id,
     name: fallbackName,
-    email: user.email || '',
-    createdAt: user.created_at,
-    isAdmin: false,
-    avatarUrl: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
-    provider: user.app_metadata?.provider || null,
+    email: cachedProfile?.email || user.email || '',
+    createdAt: cachedProfile?.createdAt || user.created_at,
+    isAdmin: cachedProfile?.isAdmin ?? false,
+    avatarUrl: cachedProfile?.avatarUrl || user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+    provider: cachedProfile?.provider || user.app_metadata?.provider || null,
   };
 }
 
@@ -86,7 +117,7 @@ async function ensureProfile(user: User): Promise<AuthUser> {
 
   const profile = data as ProfileRow;
 
-  return {
+  const resolvedProfile = {
     id: profile.id,
     name: profile.full_name || fallbackUser.name,
     email: profile.email || fallbackUser.email,
@@ -95,6 +126,10 @@ async function ensureProfile(user: User): Promise<AuthUser> {
     avatarUrl: profile.avatar_url,
     provider: profile.provider,
   };
+
+  saveCachedProfile(resolvedProfile);
+
+  return resolvedProfile;
 }
 
 async function getSession(): Promise<Session | null> {
@@ -139,8 +174,6 @@ export function subscribeToAuthChanges(callback: (user: AuthUser | null) => void
       return;
     }
 
-    const fallbackUser = buildFallbackUser(session.user);
-    callback(fallbackUser);
     callback(await resolveAuthUser(session.user));
   });
 

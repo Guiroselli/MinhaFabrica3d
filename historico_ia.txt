@@ -172,3 +172,32 @@ Todas as alteracoes, decisoes e acoes tomadas no projeto devem ser registradas a
 - Nao usar `service_role` no front-end.
 - Enquanto o app estiver em teste no Google Cloud, somente usuarios adicionados como test users conseguem entrar.
 - O nome do app no Google Cloud pode ser trocado depois sem quebrar a integracao.
+
+- **Data/Hora**: 2026-05-07 22:15
+- **IA**: Antigravity
+- **Acao Realizada**: Atualizei a lógica em `src/App.tsx` para o fluxo de animais ("pet"). Agora, ao fazer o upload da foto de um pet, a etapa de "Estilo" (onde o usuário poderia escolher opções como super-herói) é ocultada e pulada automaticamente, seguindo diretamente para a geração da prévia 3D usando apenas a foto fornecida.
+- **Proximos Passos (opcional)**: Validar se a prévia dos animais é gerada perfeitamente com o fluxo direto.
+
+- **Data/Hora**: 2026-05-07 22:55
+- **IA**: Codex
+- **Acao Realizada**: Corrigi em src/auth.ts um problema no fluxo de autenticacao que podia retirar contas do modo admin temporariamente. O listener de mudancas de sessao estava emitindo um usuario de fallback com isAdmin = false durante renovacoes do token; agora ele espera a resolucao real do perfil antes de atualizar o estado.
+- **Proximos Passos (opcional)**: Retestar a conta admin por alguns minutos, incluindo refresh da pagina, para confirmar que o painel nao volta sozinho para a visao comum.
+
+
+- **Data/Hora**: 2026-05-07 23:10
+- **IA**: Codex
+- **Acao Realizada**: Reforcei a estabilidade do modo admin em src/auth.ts. Agora o app salva em cache local o perfil resolvido do usuario e reaproveita isAdmin, nome, avatar e e-mail quando houver atraso ou oscilacao na resposta do Supabase, evitando que a conta volte sozinha para a visao comum.
+- **Proximos Passos (opcional)**: Fazer logout/login e testar refresh da pagina para confirmar que o papel admin permanece estavel durante renovacoes de sessao.
+
+
+- **Data/Hora**: 2026-05-07 23:25
+- **IA**: Codex
+- **Acao Realizada**: Simplifiquei o card do painel admin em src/App.tsx, removendo o bloco inferior de atualizacao de status por pedido para deixar a visualizacao mais limpa. O status atual continua aparecendo no topo de cada card.
+- **Proximos Passos (opcional)**: Se fizer sentido depois, mover a alteracao de status para um modal, drawer ou pagina detalhada do pedido.
+
+
+- **Data/Hora**: 2026-05-07 23:40
+- **IA**: Codex
+- **Acao Realizada**: Reposicionei a alteracao de status do painel admin para o topo de cada card em src/App.tsx, substituindo o selo de status por um seletor compacto no lugar do Aguardando. Removi o bloco inferior duplicado e mantive a atualizacao direta no proprio cabecalho do pedido.
+- **Proximos Passos (opcional)**: Se quiser depois, transformar esse seletor em um dropdown mais customizado com icones por status.
+
